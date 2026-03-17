@@ -11,11 +11,47 @@ DEBUG = _env.DEBUG
 ALLOWED_HOSTS = _env.allowed_hosts_list
 
 BOT_INTERNAL_URL = _env.BOT_INTERNAL_URL or ""
-TELEGRAM_BOT_TOKEN = getattr(_env, "BOT_TOKEN", "") or ""
+TELEGRAM_BOT_TOKEN = (getattr(_env, "BOT_TOKEN", "") or "").strip()
 TELEGRAM_WEBAPP_HOST = getattr(_env, "TELEGRAM_WEBAPP_HOST", "") or ""
 DEV_WEBAPP_TELEGRAM_ID = getattr(_env, "DEV_WEBAPP_TELEGRAM_ID", "") or ""
 
-CORS_ALLOWED_ORIGINS = list({*([] if not TELEGRAM_WEBAPP_HOST else [TELEGRAM_WEBAPP_HOST.rstrip("/")]), *(["http://localhost:3000", "http://127.0.0.1:3000"] if DEBUG else [])})
+CORS_ALLOWED_ORIGINS = list({
+    *([] if not TELEGRAM_WEBAPP_HOST else [TELEGRAM_WEBAPP_HOST.rstrip("/")]),
+    *(
+        [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost",
+            "http://127.0.0.1",
+        ]
+        if DEBUG
+        else []
+    ),
+})
+
+# Иначе браузер при preflight (запрос с кастомным заголовком) не отправит X-Telegram-Init-Data
+CORS_ALLOW_HEADERS = (
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "origin",
+    "user-agent",
+    "x-requested-with",
+    "x-telegram-init-data",
+)
+
+# За nginx/ngrok: доверять X-Forwarded-Proto для HTTPS и CSRF
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+_host = TELEGRAM_WEBAPP_HOST.strip().rstrip("/")
+CSRF_TRUSTED_ORIGINS = [_host] if _host else []
+
+# Безопасность в production (HTTPS за прокси)
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
 
 INSTALLED_APPS = [
     "corsheaders",

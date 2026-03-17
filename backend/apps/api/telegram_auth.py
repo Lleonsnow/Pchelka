@@ -12,23 +12,50 @@ from typing import Any
 def validate_init_data(init_data_raw: str, bot_token: str) -> dict[str, Any] | None:
     """
     Проверяет подпись initData и возвращает распарсенные параметры (включая user)
-    или None при неверной подписи.
+    или None при неверной подписи. При неудаче причина доступна через
+    validate_init_data_reason() если нужна отладка.
     """
+    result, _ = _validate_init_data_with_reason(init_data_raw, bot_token)
+    return result
+
+
+_last_failure_reason: str | None = None
+
+
+def _validate_init_data_with_reason(
+    init_data_raw: str, bot_token: str
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Валидация initData с возвратом причины при отказе (для логов)."""
+    global _last_failure_reason
+    _last_failure_reason = None
     if not init_data_raw or not bot_token:
-        return None
+        _last_failure_reason = "empty_data_or_token"
+        return (None, _last_failure_reason)
     try:
-        params = urllib.parse.parse_qsl(init_data_raw, keep_blank_values=True)
-        params_dict = dict(params)
-        received_hash = params_dict.pop("hash", None)
+        bot_token = bot_token.strip()
+        init_data_raw = init_data_raw.strip().replace(" ", "+")
+        # Парсим как в эталоне: декодируем значения, data-check-string — из декодированных пар
+        received_hash = ""
+        params_dict = {}
+        for part in init_data_raw.split("&"):
+            if "=" not in part:
+                continue
+            key, _, value = part.partition("=")
+            key = key.strip()
+            if key == "hash":
+                received_hash = value
+                continue
+            params_dict[key] = urllib.parse.unquote(value)
         if not received_hash:
-            return None
-        # Data-check-string: пары key=value, отсортированные по key, разделитель \n
-        data_check_pairs = sorted(params_dict.items())
-        data_check_string = "\n".join(f"{k}={v}" for k, v in data_check_pairs)
-        # secret_key = HMAC_SHA256(bot_token, "WebAppData")
+            _last_failure_reason = "missing_hash"
+            return (None, _last_failure_reason)
+        data_check_string = "\n".join(
+            f"{k}={params_dict[k]}" for k in sorted(params_dict.keys())
+        )
+        # secret_key = HMAC(key="WebAppData", message=bot_token) — порядок по доке Telegram
         secret_key = hmac.new(
-            bot_token.encode(),
             b"WebAppData",
+            bot_token.encode(),
             hashlib.sha256,
         ).digest()
         computed_hash = hmac.new(
@@ -37,19 +64,29 @@ def validate_init_data(init_data_raw: str, bot_token: str) -> dict[str, Any] | N
             hashlib.sha256,
         ).hexdigest()
         if not hmac.compare_digest(computed_hash, received_hash):
-            return None
-        # Опционально: проверить auth_date (не старше 1 часа)
+            _last_failure_reason = "hash_mismatch"
+            return (None, _last_failure_reason)
         auth_date = params_dict.get("auth_date")
         if auth_date:
             try:
                 from time import time
-                if abs(int(auth_date) - int(time())) > 3600:
-                    return None
+                now = int(time())
+                ad = int(auth_date)
+                if abs(ad - now) > 86400:
+                    _last_failure_reason = f"auth_date_expired (auth_date={ad}, now={now}, diff_sec={abs(ad - now)})"
+                    return (None, _last_failure_reason)
             except (ValueError, TypeError):
-                return None
-        return params_dict
-    except Exception:
-        return None
+                _last_failure_reason = "auth_date_invalid"
+                return (None, _last_failure_reason)
+        return (params_dict, None)
+    except Exception as e:
+        _last_failure_reason = f"exception: {type(e).__name__}"
+        return (None, _last_failure_reason)
+
+
+def get_validation_failure_reason() -> str | None:
+    """Причина последнего отказа validate_init_data (для отладки)."""
+    return _last_failure_reason
 
 
 def get_telegram_user_from_validated(validated: dict[str, Any]) -> dict[str, Any] | None:
