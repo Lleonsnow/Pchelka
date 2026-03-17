@@ -1,0 +1,94 @@
+from aiogram import Router, F
+from aiogram.types import Message
+from aiogram.filters import CommandStart, Command
+
+from bot.config import BotConfig
+from bot.database import get_session
+from bot.repositories.user_repository import UserData, update_user_phone
+from bot.keyboards.start import REQUEST_CONTACT, get_main_menu
+
+router = Router(name="start")
+
+
+@router.message(CommandStart())
+async def cmd_start(
+    message: Message,
+    user: UserData,
+    session_factory,
+    config: BotConfig,
+) -> None:
+    # Deep link: t.me/bot?start=product_<id>
+    if message.text and " " in message.text:
+        args = message.text.split(maxsplit=1)[1].strip().lower()
+        if args.startswith("product_"):
+            pid_str = args[8:].strip()
+            if pid_str.isdigit():
+                from bot.handlers.catalog import show_product_card_by_id
+                ok = await show_product_card_by_id(
+                    message, int(pid_str), session_factory, config
+                )
+                if ok and user.phone:
+                    await message.answer(
+                        "Выбери действие в меню ниже.",
+                        reply_markup=get_main_menu(),
+                    )
+                elif ok:
+                    await message.answer(
+                        "Для заказов поделитесь контактом.",
+                        reply_markup=REQUEST_CONTACT,
+                    )
+                else:
+                    await message.answer("Товар не найден.")
+                return
+
+    if user.phone:
+        await message.answer(
+            f"Привет, {user.first_name or 'друг'}! 👋\n\n"
+            "Выбери действие в меню ниже.",
+            reply_markup=get_main_menu(),
+        )
+        return
+    await message.answer(
+        "Добро пожаловать! Для продолжения поделитесь контактом — он нужен для доставки заказов.",
+        reply_markup=REQUEST_CONTACT,
+    )
+
+
+@router.message(lambda m: m.contact is not None)
+async def handle_contact(
+    message: Message, user: UserData, session_factory
+) -> None:
+    if message.from_user and message.contact and message.from_user.id != message.contact.user_id:
+        await message.answer("Пожалуйста, отправьте свой контакт.")
+        return
+    phone = (message.contact.phone_number or "").strip()
+    if not phone:
+        await message.answer("Не удалось получить номер телефона.")
+        return
+    async with get_session(session_factory) as session:
+        await update_user_phone(session, user.telegram_id, phone)
+    await message.answer(
+        "Спасибо! Контакт сохранён. Теперь вы можете пользоваться магазином.",
+        reply_markup=get_main_menu(),
+    )
+
+
+@router.message(Command("cart"))
+async def cmd_cart(message: Message) -> None:
+    await message.answer("Корзина будет доступна после настройки.")
+
+@router.message(Command("help"))
+@router.message(F.text.in_({"❓ Помощь", "Помощь"}))
+async def cmd_help(message: Message) -> None:
+    await message.answer(
+        "Команды бота:\n"
+        "/start — начать\n"
+        "/catalog — каталог товаров\n"
+        "/cart — корзина\n"
+        "/help — эта справка"
+    )
+
+
+@router.message(F.text.in_({"🛒 Корзина", "Корзина"}))
+async def menu_cart(message: Message) -> None:
+    await message.answer("Корзина будет доступна после настройки.")
