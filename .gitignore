@@ -33,6 +33,14 @@ backend/logs/
 # Bot
 bot/logs/
 
+# Next.js / WebApp
+webapp/.next/
+webapp/node_modules/
+webapp/out/
+webapp/.vercel
+webapp/.turbo
+webapp/.swc/
+
 # OS
 .DS_Store
 Thumbs.db
