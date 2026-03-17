@@ -1,0 +1,48 @@
+# Локальный скрипт коммитов (не часть репозитория)
+commit.sh
+
+# Секреты и окружение
+.env
+.env.local
+*.env
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.so
+.venv/
+venv/
+ENV/
+
+# Django
+backend/staticfiles/
+backend/media/
+backend/logs/
+*.log
+
+# Bot
+bot/logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Тесты / кэш
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+docs
+README.md

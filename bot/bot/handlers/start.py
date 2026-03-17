@@ -73,10 +73,6 @@ async def handle_contact(
     )
 
 
-@router.message(Command("cart"))
-async def cmd_cart(message: Message) -> None:
-    await message.answer("Корзина будет доступна после настройки.")
-
 @router.message(Command("help"))
 @router.message(F.text.in_({"❓ Помощь", "Помощь"}))
 async def cmd_help(message: Message) -> None:
@@ -89,6 +85,3 @@ async def cmd_help(message: Message) -> None:
     )
 
 
-@router.message(F.text.in_({"🛒 Корзина", "Корзина"}))
-async def menu_cart(message: Message) -> None:
-    await message.answer("Корзина будет доступна после настройки.")
