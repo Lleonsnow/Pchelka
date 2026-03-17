@@ -97,17 +97,17 @@ export default function CartPage() {
         </div>
       ) : (
         <>
-          <ul className="list-divider">
+          <ul className="cartList">
             {items.map((item) => (
-              <li key={item.id} className="card" style={{ padding: 16, marginBottom: 12 }}>
-                <div className="flex justify-between items-center flex-wrap gap-1">
+              <li key={item.id} className="card cartItem">
+                <div className="cartItem__top">
                   <div>
-                    <strong style={{ fontSize: "0.9375rem" }}>{item.product_name}</strong>
-                    <p className="hint mt-0 mb-0" style={{ fontSize: "0.8125rem" }}>
+                    <strong className="cartItem__name">{item.product_name}</strong>
+                    <p className="hint cartItem__meta">
                       {item.price} ₽ × {item.quantity} = {item.subtotal} ₽
                     </p>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="qtyControl" aria-label="Количество">
                     <button
                       type="button"
                       aria-label="Уменьшить"
@@ -116,7 +116,7 @@ export default function CartPage() {
                     >
                       −
                     </button>
-                    <span style={{ minWidth: 24, textAlign: "center", fontWeight: 700 }}>{item.quantity}</span>
+                    <span className="qtyControl__value">{item.quantity}</span>
                     <button
                       type="button"
                       aria-label="Увеличить"
@@ -139,18 +139,22 @@ export default function CartPage() {
             ))}
           </ul>
 
-          <div className="card mt-2" style={{ padding: 20 }}>
-            <div className="flex justify-between items-center mb-2">
-              <span className="text--secondary">Итого</span>
-              <span className="text--price" style={{ fontSize: "1.25rem" }}>{total} ₽</span>
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              <button type="button" onClick={handleClear} className="btn btn--secondary">
-                Очистить
-              </button>
-              <Link href="/checkout" className="btn btn--primary" style={{ flex: 1, minWidth: 140 }}>
-                Оформить заказ
-              </Link>
+          <div className="cartSummarySticky">
+            <div className="card cartSummary">
+              <div className="cartSummary__row">
+                <span className="text--secondary">Итого</span>
+                <span className="text--price" style={{ fontSize: "1.25rem" }}>
+                  {total} ₽
+                </span>
+              </div>
+              <div className="cartSummary__actions">
+                <button type="button" onClick={handleClear} className="btn btn--secondary btn--wide">
+                  Очистить
+                </button>
+                <Link href="/checkout" className="btn btn--primary btn--wide">
+                  Оформить
+                </Link>
+              </div>
             </div>
           </div>
         </>

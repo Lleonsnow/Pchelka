@@ -1,11 +1,18 @@
 "use client";
 
-import { getInitData } from "./telegram";
+import { getInitData, getTelegramWebApp } from "./telegram";
 
-const API_BASE =
-  typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL
-    ? process.env.NEXT_PUBLIC_API_URL
-    : "http://localhost:8000";
+// При открытии с порта 3000 (HMR) — бэкенд на 8000. Иначе тот же домен (nginx/ngrok) или NEXT_PUBLIC_API_URL.
+function getApiBase(): string {
+  if (typeof window !== "undefined" && window.location.port === "3000") {
+    return "http://localhost:8000";
+  }
+  if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  return "";
+}
+const API_BASE = getApiBase();
 
 const WEBAPP_PREFIX = "/api/webapp";
 
@@ -20,15 +27,34 @@ function getHeaders(): HeadersInit {
   return headers;
 }
 
+function isNetworkError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  return (
+    msg === "Failed to fetch" ||
+    msg === "Load failed" ||
+    (e instanceof TypeError && msg.includes("fetch"))
+  );
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE}${WEBAPP_PREFIX}${path}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: { ...getHeaders(), ...options.headers },
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers: { ...getHeaders(), ...options.headers },
+    });
+  } catch (e) {
+    if (isNetworkError(e)) {
+      throw new Error(
+        "Не удалось подключиться к серверу. Проверьте интернет и настройку NEXT_PUBLIC_API_URL для Telegram."
+      );
+    }
+    throw e;
+  }
   if (!res.ok) {
     const text = await res.text();
     let detail = text;
@@ -37,6 +63,18 @@ export async function apiFetch<T>(
       detail = j.detail ?? text;
     } catch {
       // ignore
+    }
+    if (res.status === 401 && (detail === "Unauthorized" || detail.toLowerCase().includes("unauthorized"))) {
+      const hasTelegram = typeof window !== "undefined" && !!getTelegramWebApp();
+      const hasInitData = typeof window !== "undefined" && !!getInitData();
+      if (hasTelegram && !hasInitData) {
+        throw new Error(
+          "Сессия не передана. Откройте магазин через кнопку меню бота в Telegram (не по прямой ссылке в браузере)."
+        );
+      }
+      throw new Error(
+        "Не удалось войти. Убедитесь, что открыли магазин из того же бота. Если ошибка повторяется — проверьте BOT_TOKEN на сервере."
+      );
     }
     throw new Error(detail);
   }

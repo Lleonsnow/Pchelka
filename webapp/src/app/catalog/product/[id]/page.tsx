@@ -70,45 +70,37 @@ export default function ProductPage() {
 
   return (
     <div className="page">
-      <div className="card mt-0" style={{ overflow: "hidden", marginBottom: 20 }}>
-        {product.image_urls?.length > 0 ? (
-          <div style={{ aspectRatio: "1", maxHeight: 320, background: "var(--color-cream-dark)" }}>
-            <img
-              src={product.image_urls[0]}
-              alt={product.name}
-              style={{ width: "100%", height: "100%", objectFit: "contain" }}
-            />
-          </div>
-        ) : (
-          <div style={{ aspectRatio: "1", maxHeight: 320, background: "var(--color-cream-dark)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "4rem" }}>
-            🍯
-          </div>
-        )}
-        <div style={{ padding: 20 }}>
-          <h1 className="page__title mt-0 mb-1">{product.name}</h1>
-          <p className="text--price" style={{ fontSize: "1.5rem", margin: "0 0 16px 0" }}>
-            {product.price} ₽
-          </p>
-          {product.description && (
-            <p className="text--secondary" style={{ whiteSpace: "pre-wrap", fontSize: "0.9375rem", lineHeight: 1.5 }}>
-              {product.description}
-            </p>
+      <section className="card productHero">
+        <div className="productMedia">
+          {product.image_urls?.length > 0 ? (
+            <img src={product.image_urls[0]} alt={product.name} className="productMedia__img" />
+          ) : (
+            <span style={{ fontSize: "4rem" }} aria-hidden>
+              🍯
+            </span>
           )}
-          <div className="flex gap-2 mt-3">
-            <button
-              type="button"
-              onClick={handleAddToCart}
-              disabled={adding}
-              className="btn btn--primary"
-            >
+        </div>
+        <div className="productBody">
+          <h1 className="productTitle">{product.name}</h1>
+          <p className="text--price productPrice">{product.price} ₽</p>
+          {product.description && <p className="text--secondary productDesc">{product.description}</p>}
+
+          <div className="productActions">
+            <button type="button" onClick={handleAddToCart} disabled={adding} className="btn btn--primary btn--wide">
               {adding ? "Добавляем…" : "В корзину"}
             </button>
-            <Link href="/cart" className="btn btn--secondary">
+            <Link href="/cart" className="btn btn--secondary btn--wide">
               Перейти в корзину
             </Link>
           </div>
         </div>
-      </div>
+      </section>
+
+      <p className="mt-2">
+        <Link href="/catalog" className="text--secondary" style={{ fontSize: "0.875rem" }}>
+          ← Назад в каталог
+        </Link>
+      </p>
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { notifyReady, getThemeParams } from "@/lib/telegram";
+import { AppShell } from "@/components/AppShell";
 import "./globals.css";
 
 export default function RootLayout({
@@ -38,7 +39,7 @@ export default function RootLayout({
           ["--hint-color" as string]: hint,
         }}
       >
-        {children}
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

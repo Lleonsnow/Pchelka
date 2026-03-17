@@ -83,8 +83,10 @@ export default function CheckoutPage() {
   if (success) {
     return (
       <div className="page">
-        <div className="card" style={{ padding: 24, textAlign: "center" }}>
-          <div style={{ fontSize: "3rem", marginBottom: 16 }}>✓</div>
+        <div className="card successCard">
+          <div className="successMark" aria-hidden>
+            ✓
+          </div>
           <h1 className="page__title mt-0 mb-1">Заказ оформлен</h1>
           <p className="text--secondary mb-0">
             Сумма: <strong className="text--price">{total} ₽</strong>. Мы свяжемся с вами для подтверждения и оплаты.
@@ -111,47 +113,56 @@ export default function CheckoutPage() {
           e.preventDefault();
           handleSubmit();
         }}
-        className="card"
-        style={{ padding: 20 }}
+        className="card checkoutCard"
       >
-        <label className="label">
-          ФИО
-          <input
-            type="text"
-            className="input"
-            value={form.full_name}
-            onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
-            placeholder="Иван Иванов"
-            required
-          />
-        </label>
-        <label className="label" style={{ marginTop: 16 }}>
-          Адрес доставки
-          <input
-            type="text"
-            className="input"
-            value={form.address}
-            onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-            placeholder="Город, улица, дом, квартира"
-            required
-          />
-        </label>
-        <label className="label" style={{ marginTop: 16 }}>
-          Телефон
-          <input
-            type="tel"
-            className="input"
-            value={form.phone}
-            onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-            placeholder="+7 900 123-45-67"
-            required
-          />
-        </label>
+        <div className="formGrid">
+          <label className="label">
+            ФИО
+            <input
+              type="text"
+              className="input"
+              value={form.full_name}
+              onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
+              placeholder="Иван Иванов"
+              required
+              autoComplete="name"
+            />
+          </label>
+          <label className="label">
+            Адрес доставки
+            <input
+              type="text"
+              className="input"
+              value={form.address}
+              onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+              placeholder="Город, улица, дом, квартира"
+              required
+              autoComplete="street-address"
+            />
+          </label>
+          <label className="label">
+            Телефон
+            <input
+              type="tel"
+              className="input"
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              placeholder="+7 900 123-45-67"
+              required
+              inputMode="tel"
+              autoComplete="tel"
+            />
+          </label>
+        </div>
+        <div className="inputHintRow">
+          <span>Проверим данные и свяжемся для подтверждения.</span>
+          <span>Итого: {total} ₽</span>
+        </div>
         <button
           type="submit"
           disabled={submitting}
           className="btn btn--primary"
-          style={{ width: "100%", marginTop: 24 }}
+          style={{ width: "100%", marginTop: 18 }}
         >
           {submitting ? "Отправка…" : "Подтвердить заказ"}
         </button>

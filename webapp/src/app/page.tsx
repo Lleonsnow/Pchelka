@@ -5,31 +5,40 @@ import Link from "next/link";
 export default function HomePage() {
   return (
     <div className="page">
-      <header className="page__header">
-        <div>
-          <h1 className="page__title">Пчёлка</h1>
-          <p className="page__subtitle">Магазин мёда и продуктов пасеки</p>
-        </div>
-      </header>
+      <section className="card homeHero mt-2">
+        <h1 className="homeHero__title">Пчёлка</h1>
+        <p className="homeHero__subtitle">
+          Натуральный мёд и продукты пасеки. Выбирайте любимые вкусы и оформляйте заказ в пару нажатий.
+        </p>
+      </section>
 
-      <section className="mt-3">
-        <Link href="/catalog" className="card card--clickable" style={{ display: "block", padding: 20 }}>
-          <span style={{ fontSize: "2rem", display: "block", marginBottom: 8 }}>🍯</span>
-          <strong style={{ fontSize: "1.125rem" }}>Каталог</strong>
-          <p className="hint mt-1 mb-0" style={{ fontSize: "0.875rem" }}>
-            Мёд, продукты пасеки, подарочные наборы
-          </p>
+      <section className="mt-2 homeQuickGrid">
+        <Link href="/catalog" className="card card--clickable homeCard">
+          <span className="homeCard__iconWrap">
+            <span className="homeCard__icon" aria-hidden>🍯</span>
+          </span>
+          <div className="homeCard__content">
+            <strong className="homeCard__title">Каталог</strong>
+            <p className="homeCard__desc">Мёд, наборы, продукты пасеки</p>
+          </div>
+        </Link>
+
+        <Link href="/cart" className="card card--clickable homeCard">
+          <span className="homeCard__iconWrap">
+            <span className="homeCard__icon" aria-hidden>🛒</span>
+          </span>
+          <div className="homeCard__content">
+            <strong className="homeCard__title">Корзина</strong>
+            <p className="homeCard__desc">Проверить позиции и оформить</p>
+          </div>
         </Link>
       </section>
 
-      <section className="mt-2">
-        <Link href="/cart" className="card card--clickable" style={{ display: "block", padding: 20 }}>
-          <span style={{ fontSize: "2rem", display: "block", marginBottom: 8 }}>🛒</span>
-          <strong style={{ fontSize: "1.125rem" }}>Корзина</strong>
-          <p className="hint mt-1 mb-0" style={{ fontSize: "0.875rem" }}>
-            Просмотр и оформление заказа
-          </p>
-        </Link>
+      <section className="mt-2 card blockCard">
+        <strong className="blockCard__title">Почему это удобно</strong>
+        <p className="blockCard__text">
+          Быстрая навигация сверху, понятные карточки товаров, оформление заказа прямо в Telegram.
+        </p>
       </section>
     </div>
   );

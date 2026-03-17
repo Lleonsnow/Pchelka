@@ -1,11 +1,14 @@
+# Production: один этап — установка (включая dev для сборки), сборка, запуск next start.
 FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install
+COPY package.json package-lock.json* ./
+RUN npm install && npm cache clean --force
 
 COPY . .
-EXPOSE 3000
+RUN npm run build
 
-CMD ["npm", "run", "dev"]
+ENV NODE_ENV=production
+EXPOSE 3000
+CMD ["npm", "run", "start"]
