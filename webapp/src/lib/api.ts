@@ -162,12 +162,23 @@ export async function removeFromCart(productId: number): Promise<CartResponse> {
   return apiFetch<CartResponse>(`/cart/remove/${productId}/`, { method: "DELETE" });
 }
 
+export type OrderListItem = {
+  id: number;
+  status: string;
+  total: string;
+  created_at: string;
+};
+
+export async function getOrders(): Promise<OrderListItem[]> {
+  return apiFetch<OrderListItem[]>("/orders/");
+}
+
 export async function createOrder(data: {
   full_name: string;
   address: string;
   phone: string;
 }): Promise<{ id: number; total: string; status: string }> {
-  return apiFetch("/orders/", {
+  return apiFetch("/orders/create/", {
     method: "POST",
     body: JSON.stringify(data),
   });

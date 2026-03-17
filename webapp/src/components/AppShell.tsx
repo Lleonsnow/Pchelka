@@ -9,7 +9,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="appShell">
       <AppHeader />
-      <main key={pathname} className="appMain pageTransition" role="main">
+      <main className="appMain" role="main">
         {children}
       </main>
     </div>

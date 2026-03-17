@@ -94,3 +94,13 @@ class OrderCreateSerializer(serializers.Serializer):
     full_name = serializers.CharField(max_length=255)
     address = serializers.CharField()
     phone = serializers.CharField(max_length=32)
+
+
+class OrderListSerializer(serializers.ModelSerializer):
+    """Краткий список заказов пользователя для профиля."""
+
+    class Meta:
+        model = Order
+        fields = ["id", "status", "total", "created_at"]
+
+    total = serializers.DecimalField(max_digits=12, decimal_places=2, coerce_to_string=True)

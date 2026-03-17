@@ -57,8 +57,6 @@ async def cmd_start(
             "Нажми кнопку ниже или выбери действие в меню.",
             reply_markup=webapp_kb or get_main_menu(),
         )
-        if webapp_kb:
-            await message.answer("Меню:", reply_markup=get_main_menu())
         return
     await message.answer(
         "Добро пожаловать! Нажми «Открыть магазин» или поделитесь контактом для доставки заказов.",
@@ -96,6 +94,24 @@ async def handle_contact(
     )
     if webapp_kb:
         await message.answer("Меню:", reply_markup=get_main_menu())
+
+
+@router.message(F.text.in_({"📋 Мои заказы", "Мои заказы"}))
+async def cmd_my_orders(message: Message, config: BotConfig) -> None:
+    """Открыть раздел «Мои заказы» в Web App (в приложении — скролл при >4 заказов)."""
+    webapp_url = (config.webapp_url or "").strip().rstrip("/")
+    if not webapp_url:
+        await message.answer("Магазин временно недоступен.")
+        return
+    profile_url = f"{webapp_url}/profile"
+    await message.answer(
+        "Откройте приложение, чтобы посмотреть историю заказов:",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="📋 Мои заказы", web_app=WebAppInfo(url=profile_url))],
+            ]
+        ),
+    )
 
 
 @router.message(Command("help"))

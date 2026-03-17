@@ -16,6 +16,7 @@ def get_main_menu() -> ReplyKeyboardMarkup:
                 KeyboardButton(text="📁 Каталог"),
                 KeyboardButton(text="🛒 Корзина"),
             ],
+            [KeyboardButton(text="📋 Мои заказы")],
             [KeyboardButton(text="❓ Помощь")],
         ],
         resize_keyboard=True,

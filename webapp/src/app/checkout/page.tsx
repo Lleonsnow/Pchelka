@@ -3,8 +3,35 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { setupBackButton, hideBackButton, setupMainButton, hideMainButton } from "@/lib/telegram";
+import { setupBackButton, hideBackButton } from "@/lib/telegram";
 import { getCart, createOrder } from "@/lib/api";
+
+const CHECKOUT_STORAGE_KEY = "tg-shop-checkout-last";
+
+function getSavedCheckoutData(): { full_name: string; address: string; phone: string } {
+  if (typeof window === "undefined") return { full_name: "", address: "", phone: "" };
+  try {
+    const raw = localStorage.getItem(CHECKOUT_STORAGE_KEY);
+    if (!raw) return { full_name: "", address: "", phone: "" };
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return {
+      full_name: typeof parsed.full_name === "string" ? parsed.full_name : "",
+      address: typeof parsed.address === "string" ? parsed.address : "",
+      phone: typeof parsed.phone === "string" ? parsed.phone : "",
+    };
+  } catch {
+    return { full_name: "", address: "", phone: "" };
+  }
+}
+
+function saveCheckoutData(data: { full_name: string; address: string; phone: string }) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify(data));
+  } catch {
+    // ignore
+  }
+}
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -15,6 +42,15 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [form, setForm] = useState({ full_name: "", address: "", phone: "" });
+  const [fieldErrors, setFieldErrors] = useState<{ full_name?: string; address?: string; phone?: string }>({});
+
+  useEffect(() => {
+    setForm((prev) => {
+      const saved = getSavedCheckoutData();
+      if (!saved.full_name && !saved.address && !saved.phone) return prev;
+      return saved;
+    });
+  }, []);
 
   useEffect(() => {
     getCart()
@@ -28,37 +64,59 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     setupBackButton(() => router.push("/cart"));
-    return () => {
-      hideBackButton();
-      hideMainButton();
-    };
+    return () => hideBackButton();
   }, [router]);
 
   const handleSubmit = useCallback(() => {
     if (submitting || itemsCount === 0) return;
     const { full_name, address, phone } = form;
-    if (!full_name.trim() || !address.trim() || !phone.trim()) {
-      setError("Заполните ФИО, адрес и телефон");
+
+    const nextErrors: { full_name?: string; address?: string; phone?: string } = {};
+
+    const nameTrimmed = full_name.trim();
+    if (!nameTrimmed) {
+      nextErrors.full_name = "Введите ФИО";
+    } else if (nameTrimmed.length < 5 || !nameTrimmed.includes(" ")) {
+      nextErrors.full_name = "Укажите имя и фамилию полностью";
+    }
+
+    const addressTrimmed = address.trim();
+    if (!addressTrimmed) {
+      nextErrors.address = "Введите адрес доставки";
+    } else if (addressTrimmed.length < 10) {
+      nextErrors.address = "Адрес слишком короткий";
+    }
+
+    const phoneTrimmed = phone.trim();
+    const phoneNormalized = phoneTrimmed.replace(/[^+0-9]/g, "");
+    const phoneOk = /^(\+7|7|8)[0-9]{10}$/.test(phoneNormalized);
+    if (!phoneTrimmed) {
+      nextErrors.phone = "Введите телефон";
+    } else if (!phoneOk) {
+      nextErrors.phone = "Формат телефона: +7 900 123-45-67";
+    }
+
+    if (nextErrors.full_name || nextErrors.address || nextErrors.phone) {
+      setFieldErrors(nextErrors);
+      setError(null);
       return;
     }
+
+    setFieldErrors({});
     setSubmitting(true);
     setError(null);
-    createOrder({ full_name: full_name.trim(), address: address.trim(), phone: phone.trim() })
-      .then(() => setSuccess(true))
+    const payload = { full_name: nameTrimmed, address: addressTrimmed, phone: phoneTrimmed };
+    createOrder(payload)
+      .then(() => {
+        saveCheckoutData(payload);
+        setSuccess(true);
+      })
       .catch((e) => {
         setError(e.message);
         setSubmitting(false);
       });
   }, [form, itemsCount, submitting]);
 
-  useEffect(() => {
-    if (success || loading || itemsCount === 0) {
-      hideMainButton();
-      return;
-    }
-    setupMainButton("Подтвердить заказ", handleSubmit);
-    return () => hideMainButton();
-  }, [success, loading, itemsCount, handleSubmit]);
 
   if (loading) {
     return (
@@ -71,10 +129,10 @@ export default function CheckoutPage() {
   if (itemsCount === 0 && !success) {
     return (
       <div className="page">
-        <div className="empty-state card">
-          <div className="empty-state__icon">🛒</div>
-          <p className="mb-0">Корзина пуста</p>
-          <Link href="/catalog" className="btn btn--primary mt-2">В каталог</Link>
+        <div className="empty-state empty-state--cart">
+          <span className="empty-state__icon" aria-hidden>🛒</span>
+          <p className="empty-state__text">Корзина пуста</p>
+          <p className="empty-state__hint">Добавьте товары из каталога</p>
         </div>
       </div>
     );
@@ -84,14 +142,12 @@ export default function CheckoutPage() {
     return (
       <div className="page">
         <div className="card successCard">
-          <div className="successMark" aria-hidden>
-            ✓
-          </div>
+          <div className="successMark" aria-hidden>✓</div>
           <h1 className="page__title mt-0 mb-1">Заказ оформлен</h1>
           <p className="text--secondary mb-0">
             Сумма: <strong className="text--price">{total} ₽</strong>. Мы свяжемся с вами для подтверждения и оплаты.
           </p>
-          <Link href="/" className="btn btn--primary mt-3">На главную</Link>
+          <Link href="/" className="btn btn--primary btn--full mt-3">На главную</Link>
         </div>
       </div>
     );
@@ -120,31 +176,47 @@ export default function CheckoutPage() {
             ФИО
             <input
               type="text"
-              className="input"
+              className={"input" + (fieldErrors.full_name ? " input--error" : "")}
+              aria-invalid={!!fieldErrors.full_name}
+              aria-describedby={fieldErrors.full_name ? "checkout-fullname-error" : undefined}
               value={form.full_name}
               onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
               placeholder="Иван Иванов"
               required
               autoComplete="name"
             />
+            {fieldErrors.full_name && (
+              <p className="fieldError" id="checkout-fullname-error">
+                {fieldErrors.full_name}
+              </p>
+            )}
           </label>
           <label className="label">
             Адрес доставки
             <input
               type="text"
-              className="input"
+              className={"input" + (fieldErrors.address ? " input--error" : "")}
+              aria-invalid={!!fieldErrors.address}
+              aria-describedby={fieldErrors.address ? "checkout-address-error" : undefined}
               value={form.address}
               onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
               placeholder="Город, улица, дом, квартира"
               required
               autoComplete="street-address"
             />
+            {fieldErrors.address && (
+              <p className="fieldError" id="checkout-address-error">
+                {fieldErrors.address}
+              </p>
+            )}
           </label>
           <label className="label">
             Телефон
             <input
               type="tel"
-              className="input"
+              className={"input" + (fieldErrors.phone ? " input--error" : "")}
+              aria-invalid={!!fieldErrors.phone}
+              aria-describedby={fieldErrors.phone ? "checkout-phone-error" : undefined}
               value={form.phone}
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
               placeholder="+7 900 123-45-67"
@@ -152,6 +224,11 @@ export default function CheckoutPage() {
               inputMode="tel"
               autoComplete="tel"
             />
+            {fieldErrors.phone && (
+              <p className="fieldError" id="checkout-phone-error">
+                {fieldErrors.phone}
+              </p>
+            )}
           </label>
         </div>
         <div className="inputHintRow">
@@ -161,18 +238,12 @@ export default function CheckoutPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="btn btn--primary"
-          style={{ width: "100%", marginTop: 18 }}
+          className="btn btn--primary btn--full"
+          style={{ marginTop: 18 }}
         >
           {submitting ? "Отправка…" : "Подтвердить заказ"}
         </button>
       </form>
-
-      <p className="mt-2">
-        <Link href="/cart" className="text--secondary" style={{ fontSize: "0.875rem" }}>
-          ← В корзину
-        </Link>
-      </p>
     </div>
   );
 }

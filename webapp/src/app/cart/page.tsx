@@ -62,7 +62,7 @@ export default function CartPage() {
     return (
       <div className="page">
         <p className="error-msg">{error}</p>
-        <Link href="/" className="btn btn--secondary mt-2">← На главную</Link>
+        <Link href="/" className="btn btn--secondary mt-2">На главную</Link>
       </div>
     );
   }
@@ -79,40 +79,38 @@ export default function CartPage() {
   const total = data?.total ?? "0";
 
   return (
-    <div className="page">
+    <div className="page page--cart">
       <header className="page__header">
-        <div>
-          <h1 className="page__title">Корзина</h1>
-          <p className="page__subtitle">
-            {items.length === 0 ? "Пока пусто" : `${items.length} ${items.length === 1 ? "позиция" : "позиции"}`}
-          </p>
-        </div>
+        <h1 className="page__title">Корзина</h1>
+        <p className="page__subtitle">
+          {items.length === 0 ? "Пока пусто" : `${items.length} ${items.length === 1 ? "позиция" : "позиции"}`}
+        </p>
       </header>
 
       {items.length === 0 ? (
-        <div className="empty-state card">
-          <div className="empty-state__icon">🛒</div>
-          <p className="mb-0">Корзина пуста</p>
-          <Link href="/catalog" className="btn btn--primary mt-2">В каталог</Link>
+        <div className="empty-state empty-state--cart">
+          <span className="empty-state__icon" aria-hidden>🛒</span>
+          <p className="empty-state__text">Корзина пуста</p>
+          <p className="empty-state__hint">Добавьте товары из каталога</p>
         </div>
       ) : (
         <>
           <ul className="cartList">
             {items.map((item) => (
-              <li key={item.id} className="card cartItem">
-                <div className="cartItem__top">
-                  <div>
-                    <strong className="cartItem__name">{item.product_name}</strong>
-                    <p className="hint cartItem__meta">
-                      {item.price} ₽ × {item.quantity} = {item.subtotal} ₽
-                    </p>
-                  </div>
+              <li key={item.id} className="cartItem">
+                <div className="cartItem__main">
+                  <strong className="cartItem__name">{item.product_name}</strong>
+                  <p className="cartItem__meta">
+                    {item.price} ₽ × {item.quantity} = <strong>{item.subtotal} ₽</strong>
+                  </p>
+                </div>
+                <div className="cartItem__actions">
                   <div className="qtyControl" aria-label="Количество">
                     <button
                       type="button"
                       aria-label="Уменьшить"
                       onClick={() => handleQuantity(item.product_id, -1)}
-                      className="btn btn--secondary btn--icon"
+                      className="qtyControl__btn"
                     >
                       −
                     </button>
@@ -121,50 +119,40 @@ export default function CartPage() {
                       type="button"
                       aria-label="Увеличить"
                       onClick={() => handleQuantity(item.product_id, 1)}
-                      className="btn btn--secondary btn--icon"
+                      className="qtyControl__btn"
                     >
                       +
                     </button>
-                    <button
-                      type="button"
-                      aria-label="Удалить"
-                      onClick={() => handleRemove(item.product_id)}
-                      className="btn btn--secondary btn--icon"
-                    >
-                      ✕
-                    </button>
                   </div>
+                  <button
+                    type="button"
+                    aria-label="Удалить"
+                    onClick={() => handleRemove(item.product_id)}
+                    className="cartItem__remove"
+                  >
+                    Удалить
+                  </button>
                 </div>
               </li>
             ))}
           </ul>
 
-          <div className="cartSummarySticky">
-            <div className="card cartSummary">
-              <div className="cartSummary__row">
-                <span className="text--secondary">Итого</span>
-                <span className="text--price" style={{ fontSize: "1.25rem" }}>
-                  {total} ₽
-                </span>
-              </div>
-              <div className="cartSummary__actions">
-                <button type="button" onClick={handleClear} className="btn btn--secondary btn--wide">
-                  Очистить
-                </button>
-                <Link href="/checkout" className="btn btn--primary btn--wide">
-                  Оформить
-                </Link>
-              </div>
+          <div className="cartFooter">
+            <div className="cartFooter__total">
+              <span className="cartFooter__label">Итого</span>
+              <span className="cartFooter__sum">{total} ₽</span>
+            </div>
+            <div className="cartFooter__btns">
+              <button type="button" onClick={handleClear} className="btn btn--secondary">
+                Очистить
+              </button>
+              <Link href="/checkout" className="btn btn--primary">
+                Оформить заказ
+              </Link>
             </div>
           </div>
         </>
       )}
-
-      <p className="mt-3">
-        <Link href="/catalog" className="text--secondary" style={{ fontSize: "0.875rem" }}>
-          ← В каталог
-        </Link>
-      </p>
     </div>
   );
 }

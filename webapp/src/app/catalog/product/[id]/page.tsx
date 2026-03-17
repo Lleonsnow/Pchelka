@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { setupBackButton, hideBackButton } from "@/lib/telegram";
 import { getProduct, addToCart, type ProductDetail } from "@/lib/api";
 
@@ -53,54 +52,48 @@ export default function ProductPage() {
 
   if (error) {
     return (
-      <div className="page">
+      <div className="page page--product">
         <p className="error-msg">{error}</p>
-        <Link href="/catalog" className="btn btn--secondary mt-2">← Каталог</Link>
       </div>
     );
   }
 
   if (loading || !product) {
     return (
-      <div className="page">
+      <div className="page page--product">
         <div className="loading">Загрузка…</div>
       </div>
     );
   }
 
   return (
-    <div className="page">
-      <section className="card productHero">
-        <div className="productMedia">
+    <div className="page page--product">
+      <article className="productCardDetail">
+        <div className="productCardDetail__media">
           {product.image_urls?.length > 0 ? (
-            <img src={product.image_urls[0]} alt={product.name} className="productMedia__img" />
+            <img src={product.image_urls[0]} alt={product.name} className="productCardDetail__img" />
           ) : (
-            <span style={{ fontSize: "4rem" }} aria-hidden>
-              🍯
-            </span>
+            <span className="productCardDetail__placeholder" aria-hidden>🍯</span>
           )}
         </div>
-        <div className="productBody">
-          <h1 className="productTitle">{product.name}</h1>
-          <p className="text--price productPrice">{product.price} ₽</p>
-          {product.description && <p className="text--secondary productDesc">{product.description}</p>}
-
-          <div className="productActions">
-            <button type="button" onClick={handleAddToCart} disabled={adding} className="btn btn--primary btn--wide">
+        <div className="productCardDetail__body">
+          <h1 className="productCardDetail__title">{product.name}</h1>
+          <p className="productCardDetail__price">{product.price} ₽</p>
+          {product.description && (
+            <p className="productCardDetail__desc">{product.description}</p>
+          )}
+          <div className="productCardDetail__action">
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              disabled={adding}
+              className="btn btn--primary btn--full"
+            >
               {adding ? "Добавляем…" : "В корзину"}
             </button>
-            <Link href="/cart" className="btn btn--secondary btn--wide">
-              Перейти в корзину
-            </Link>
           </div>
         </div>
-      </section>
-
-      <p className="mt-2">
-        <Link href="/catalog" className="text--secondary" style={{ fontSize: "0.875rem" }}>
-          ← Назад в каталог
-        </Link>
-      </p>
+      </article>
     </div>
   );
 }

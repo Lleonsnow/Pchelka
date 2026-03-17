@@ -19,6 +19,7 @@ from .serializers import (
     CartAddSerializer,
     CartUpdateSerializer,
     OrderCreateSerializer,
+    OrderListSerializer,
 )
 
 
@@ -175,6 +176,17 @@ class CartRemoveView(APIView):
             "items": CartItemSerializer(items, many=True).data,
             "total": str(total),
         })
+
+
+class OrderListView(APIView):
+    """Список заказов текущего пользователя."""
+
+    def get(self, request: Request):
+        user = request.user
+        if not user or not isinstance(user, TelegramUser):
+            return Response({"detail": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        orders = Order.objects.filter(user=user).order_by("-created_at")[:50]
+        return Response(OrderListSerializer(orders, many=True).data)
 
 
 class OrderCreateView(APIView):

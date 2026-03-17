@@ -1,48 +1,87 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { hideBackButton, setupBackButton } from "@/lib/telegram";
+import { getOrders, type OrderListItem } from "@/lib/api";
+
+const STATUS_LABEL: Record<string, string> = {
+  new: "Новый",
+  confirmed: "Подтверждён",
+  payment_pending: "Ожидает оплаты",
+  paid: "Оплачен",
+  shipped: "Отправлен",
+  delivered: "Доставлен",
+  cancelled: "Отменён",
+};
+
+function formatOrderDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString("ru-RU", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
 
 export default function ProfilePage() {
+  const [orders, setOrders] = useState<OrderListItem[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+
   useEffect(() => {
     setupBackButton(() => window.history.back());
     return () => hideBackButton();
   }, []);
 
+  useEffect(() => {
+    getOrders()
+      .then(setOrders)
+      .catch(() => setOrders([]))
+      .finally(() => setOrdersLoading(false));
+  }, []);
+
   return (
-    <div className="page">
+    <div className="page page--profile">
       <header className="page__header">
-        <div>
-          <h1 className="page__title">Профиль</h1>
-          <p className="page__subtitle">Заказы и поддержка</p>
-        </div>
+        <h1 className="page__title">Профиль</h1>
+        <p className="page__subtitle">Заказы и поддержка</p>
       </header>
 
-      <section className="card blockCard">
-        <strong className="blockCard__title">Мои заказы</strong>
-        <p className="blockCard__text">
-          История заказов появится здесь, когда подключим API заказов для webapp.
-        </p>
+      <section className="profileSection">
+        <h2 className="profileSection__title">Мои заказы</h2>
+        {ordersLoading ? (
+          <p className="profileSection__muted">Загрузка…</p>
+        ) : orders.length === 0 ? (
+          <p className="profileSection__muted">Пока нет заказов</p>
+        ) : (
+          <div className="orderListScroll">
+            <ul className="orderList">
+            {orders.map((o) => (
+              <li key={o.id} className="orderCard">
+                <div className="orderCard__row">
+                  <span className="orderCard__id">#{o.id}</span>
+                  <span className="orderCard__date">{formatOrderDate(o.created_at)}</span>
+                </div>
+                <div className="orderCard__row orderCard__row--footer">
+                  <span className="orderCard__status">{STATUS_LABEL[o.status] ?? o.status}</span>
+                  <span className="orderCard__total">{o.total} ₽</span>
+                </div>
+              </li>
+            ))}
+            </ul>
+          </div>
+        )}
       </section>
 
-      <section className="card blockCard mt-2">
-        <strong className="blockCard__title">Поддержка</strong>
-        <p className="blockCard__text">
+      <section className="profileSection">
+        <h2 className="profileSection__title">Поддержка</h2>
+        <p className="profileSection__text">
           Вопросы по заказу или доставке — напишите в чат магазина в Telegram.
         </p>
-      </section>
-
-      <section className="card blockCard mt-2">
-        <strong className="blockCard__title">Быстрые действия</strong>
-        <div className="profileActions">
-          <Link href="/catalog" className="btn btn--secondary btn--wide">
-            Каталог
-          </Link>
-          <Link href="/cart" className="btn btn--primary btn--wide">
-            Корзина
-          </Link>
-        </div>
       </section>
     </div>
   );
