@@ -1,19 +1,24 @@
-import os
 from pathlib import Path
 
-import environ
+from config.env_settings import EnvSettings
 
-env = environ.Env(DEBUG=(bool, False))
+_env = EnvSettings()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-environ.Env.read_env(BASE_DIR.parent / ".env")
+SECRET_KEY = _env.SECRET_KEY
+DEBUG = _env.DEBUG
+ALLOWED_HOSTS = _env.allowed_hosts_list
 
-SECRET_KEY = env("SECRET_KEY", default="django-insecure-change-me")
-DEBUG = env("DEBUG")
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "backend"])
+BOT_INTERNAL_URL = _env.BOT_INTERNAL_URL or ""
+TELEGRAM_BOT_TOKEN = getattr(_env, "BOT_TOKEN", "") or ""
+TELEGRAM_WEBAPP_HOST = getattr(_env, "TELEGRAM_WEBAPP_HOST", "") or ""
+DEV_WEBAPP_TELEGRAM_ID = getattr(_env, "DEV_WEBAPP_TELEGRAM_ID", "") or ""
+
+CORS_ALLOWED_ORIGINS = list({*([] if not TELEGRAM_WEBAPP_HOST else [TELEGRAM_WEBAPP_HOST.rstrip("/")]), *(["http://localhost:3000", "http://127.0.0.1:3000"] if DEBUG else [])})
 
 INSTALLED_APPS = [
+    "corsheaders",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -23,13 +28,16 @@ INSTALLED_APPS = [
     "apps.catalog",
     "apps.users",
     "apps.cart",
-    "apps.orders",
+    "apps.orders.apps.OrdersConfig",
     "apps.faq",
     "apps.broadcasts",
     "apps.bot_settings",
+    "rest_framework",
+    "apps.api",
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -58,10 +66,14 @@ TEMPLATES = [
 ]
 
 DATABASES = {
-    "default": env.db(
-        "DATABASE_URL",
-        default="postgres://tgshop:tgshop@localhost:5432/tgshop",
-    )
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": _env.POSTGRES_DB,
+        "USER": _env.POSTGRES_USER,
+        "PASSWORD": _env.POSTGRES_PASSWORD,
+        "HOST": _env.POSTGRES_HOST,
+        "PORT": _env.POSTGRES_PORT,
+    }
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -81,6 +93,15 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "apps.api.auth.TelegramWebAppAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "apps.api.permissions.TelegramUserRequired",
+    ],
+}
 
 _log_dir = BASE_DIR / "logs"
 _log_dir.mkdir(parents=True, exist_ok=True)
