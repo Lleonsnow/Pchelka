@@ -70,6 +70,11 @@ async def order_confirm_cb(
     state: FSMContext,
     session_factory,
 ) -> None:
+    from bot.repositories.bot_settings_repository import get_bot_settings_cached
+    from bot.repositories.order_repository import get_order_for_admin
+    from bot.handlers.admin import _format_order_for_admin
+    from bot.keyboards.admin import admin_order_keyboard
+
     data = await state.get_data()
     fio = data.get("fio", "")
     address = data.get("address", "")
@@ -81,6 +86,22 @@ async def order_confirm_cb(
         await callback.message.edit_text("Корзина пуста. Заказ не создан.")
         await callback.answer()
         return
+    # Уведомление в админ-чат
+    settings = await get_bot_settings_cached(session_factory, get_session)
+    if settings and settings.admin_chat_id:
+        async with get_session(session_factory) as session:
+            order_data = await get_order_for_admin(session, order_id)
+        if order_data:
+            text = _format_order_for_admin(order_data)
+            keyboard = admin_order_keyboard(order_id, order_data["status"])
+            try:
+                await callback.bot.send_message(
+                    settings.admin_chat_id,
+                    text,
+                    reply_markup=keyboard,
+                )
+            except Exception:
+                pass
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Я оплатил(а)", callback_data=f"order_paid_{order_id}")],
     ])

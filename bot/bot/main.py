@@ -7,7 +7,7 @@ from pathlib import Path
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import BotCommand
+from aiogram.types import BotCommand, MenuButtonWebApp, WebAppInfo
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from bot.config import BotConfig
@@ -16,10 +16,14 @@ from bot.handlers import start as start_router
 from bot.handlers import catalog as catalog_router
 from bot.handlers import cart as cart_router
 from bot.handlers import order as order_router
+from bot.handlers import admin as admin_router
+from bot.handlers import faq as faq_router
 from bot.middlewares.config_middleware import ConfigMiddleware
 from bot.middlewares.logging_middleware import LoggingMiddleware
 from bot.middlewares.user_middleware import UserMiddleware
 from bot.middlewares.subscription_middleware import SubscriptionMiddleware
+from bot.notify_server import run_notify_server
+from bot.broadcast_sender import run_broadcast_worker
 
 _log_dir = Path(__file__).resolve().parent.parent / "logs"
 _log_dir.mkdir(parents=True, exist_ok=True)
@@ -47,11 +51,7 @@ BOT_COMMANDS = [
 
 
 async def main() -> None:
-    config = BotConfig.from_env()
-    if not config.token:
-        logger.error("BOT_TOKEN not set")
-        return
-
+    config = BotConfig()
     session_factory = create_session_factory(config)
     bot = Bot(
         token=config.token,
@@ -67,8 +67,23 @@ async def main() -> None:
     dp.include_router(catalog_router.router)
     dp.include_router(cart_router.router)
     dp.include_router(order_router.router)
+    dp.include_router(admin_router.router)
+    dp.include_router(faq_router.router)
 
     await bot.set_my_commands(BOT_COMMANDS)
+
+    if config.webapp_url:
+        await bot.set_chat_menu_button(
+            menu_button=MenuButtonWebApp(
+                text="Открыть магазин",
+                web_app=WebAppInfo(url=config.webapp_url),
+            ),
+        )
+        logger.info("Menu button set to Web App: %s", config.webapp_url)
+
+    if config.internal_url:
+        asyncio.create_task(run_notify_server(bot, session_factory, port=config.notify_port))
+    asyncio.create_task(run_broadcast_worker(bot, config, session_factory))
 
     try:
         logger.info("Bot starting polling")

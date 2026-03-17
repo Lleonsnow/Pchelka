@@ -6,8 +6,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.repositories.cart_repository import get_cart_items, clear_cart
 
 ORDER_STATUS_NEW = "new"
+ORDER_STATUS_CONFIRMED = "confirmed"
 ORDER_STATUS_PAYMENT_PENDING = "payment_pending"
 ORDER_STATUS_PAID = "paid"
+ORDER_STATUS_SHIPPED = "shipped"
+ORDER_STATUS_DELIVERED = "delivered"
+ORDER_STATUS_CANCELLED = "cancelled"
+
+ORDER_STATUS_LABELS = {
+    ORDER_STATUS_NEW: "Новый",
+    ORDER_STATUS_CONFIRMED: "Подтверждён",
+    ORDER_STATUS_PAYMENT_PENDING: "Ожидает оплаты",
+    ORDER_STATUS_PAID: "Оплачен",
+    ORDER_STATUS_SHIPPED: "Отправлен",
+    ORDER_STATUS_DELIVERED: "Доставлен",
+    ORDER_STATUS_CANCELLED: "Отменён",
+}
 
 
 async def create_order_from_cart(
@@ -99,3 +113,62 @@ async def get_order_user_telegram_id(session: AsyncSession, order_id: int) -> in
     )
     row = result.mappings().first()
     return row["telegram_id"] if row else None
+
+
+async def get_order_for_admin(session: AsyncSession, order_id: int) -> dict | None:
+    """Заказ с позициями и telegram_id пользователя для админки."""
+    result = await session.execute(
+        text("""
+            SELECT o.id, o.status, o.full_name, o.address, o.phone, o.total, o.created_at, u.telegram_id
+            FROM orders_order o
+            JOIN users_telegramuser u ON u.id = o.user_id
+            WHERE o.id = :oid
+        """),
+        {"oid": order_id},
+    )
+    row = result.mappings().first()
+    if not row:
+        return None
+    items_result = await session.execute(
+        text("""
+            SELECT oi.quantity, oi.price, p.name
+            FROM orders_orderitem oi
+            JOIN catalog_product p ON p.id = oi.product_id
+            WHERE oi.order_id = :oid
+        """),
+        {"oid": order_id},
+    )
+    items = [dict(r) for r in items_result.mappings()]
+    return {**dict(row), "items": items}
+
+
+async def get_orders_list(
+    session: AsyncSession,
+    limit: int = 20,
+    status_filter: str | None = None,
+) -> list[dict]:
+    """Список заказов для админа (последние limit)."""
+    if status_filter:
+        result = await session.execute(
+            text("""
+                SELECT o.id, o.status, o.full_name, o.total, o.created_at, u.telegram_id
+                FROM orders_order o
+                JOIN users_telegramuser u ON u.id = o.user_id
+                WHERE o.status = :status
+                ORDER BY o.created_at DESC
+                LIMIT :limit
+            """),
+            {"limit": limit, "status": status_filter},
+        )
+    else:
+        result = await session.execute(
+            text("""
+                SELECT o.id, o.status, o.full_name, o.total, o.created_at, u.telegram_id
+                FROM orders_order o
+                JOIN users_telegramuser u ON u.id = o.user_id
+                ORDER BY o.created_at DESC
+                LIMIT :limit
+            """),
+            {"limit": limit},
+        )
+    return [dict(row) for row in result.mappings()]

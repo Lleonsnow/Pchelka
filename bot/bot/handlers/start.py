@@ -1,5 +1,5 @@
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiogram.filters import CommandStart, Command
 
 from bot.config import BotConfig
@@ -41,22 +41,36 @@ async def cmd_start(
                     await message.answer("Товар не найден.")
                 return
 
+    webapp_url = (config.webapp_url or "").strip()
+    webapp_kb = (
+        InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="Открыть магазин", web_app=WebAppInfo(url=webapp_url))],
+            ]
+        )
+        if webapp_url else None
+    )
+
     if user.phone:
         await message.answer(
             f"Привет, {user.first_name or 'друг'}! 👋\n\n"
-            "Выбери действие в меню ниже.",
-            reply_markup=get_main_menu(),
+            "Нажми кнопку ниже или выбери действие в меню.",
+            reply_markup=webapp_kb or get_main_menu(),
         )
+        if webapp_kb:
+            await message.answer("Меню:", reply_markup=get_main_menu())
         return
     await message.answer(
-        "Добро пожаловать! Для продолжения поделитесь контактом — он нужен для доставки заказов.",
-        reply_markup=REQUEST_CONTACT,
+        "Добро пожаловать! Нажми «Открыть магазин» или поделитесь контактом для доставки заказов.",
+        reply_markup=webapp_kb or REQUEST_CONTACT,
     )
+    if webapp_kb:
+        await message.answer("Поделиться контактом:", reply_markup=REQUEST_CONTACT)
 
 
 @router.message(lambda m: m.contact is not None)
 async def handle_contact(
-    message: Message, user: UserData, session_factory
+    message: Message, user: UserData, session_factory, config: BotConfig
 ) -> None:
     if message.from_user and message.contact and message.from_user.id != message.contact.user_id:
         await message.answer("Пожалуйста, отправьте свой контакт.")
@@ -67,10 +81,21 @@ async def handle_contact(
         return
     async with get_session(session_factory) as session:
         await update_user_phone(session, user.telegram_id, phone)
-    await message.answer(
-        "Спасибо! Контакт сохранён. Теперь вы можете пользоваться магазином.",
-        reply_markup=get_main_menu(),
+    webapp_url = (config.webapp_url or "").strip()
+    webapp_kb = (
+        InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="Открыть магазин", web_app=WebAppInfo(url=webapp_url))],
+            ]
+        )
+        if webapp_url else None
     )
+    await message.answer(
+        "Спасибо! Контакт сохранён. Нажми кнопку ниже или выбери действие в меню.",
+        reply_markup=webapp_kb or get_main_menu(),
+    )
+    if webapp_kb:
+        await message.answer("Меню:", reply_markup=get_main_menu())
 
 
 @router.message(Command("help"))

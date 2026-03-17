@@ -20,6 +20,10 @@ def _media_base_url(config: BotConfig) -> str:
     return (config.media_base_url or "").rstrip("/")
 
 
+def _webapp_base_url(config: BotConfig) -> str:
+    return (config.webapp_url or "").strip()
+
+
 def _product_url(config: BotConfig, path: str) -> str:
     if not path:
         return ""
@@ -37,7 +41,7 @@ async def _send_product_card(
     edit: bool = False,
 ) -> None:
     text = f"<b>{product.name}</b>\n\n{product.description or '—'}\n\n💰 {product.price} ₽"
-    keyboard = product_card_keyboard(category_id, product.id, _media_base_url(config) or None)
+    keyboard = product_card_keyboard(category_id, product.id, _webapp_base_url(config) or None)
     if product.image_paths:
         urls = [_product_url(config, p) for p in product.image_paths if _product_url(config, p)]
         if urls:
@@ -77,7 +81,7 @@ async def catalog_root(message: Message, session_factory, config: BotConfig) -> 
         await message.answer("Каталог пока пуст.")
         return
     keyboard = build_catalog_keyboard(
-        _media_base_url(config) or "",
+        _webapp_base_url(config) or "",
         categories,
         category_id=0,
         parent_id=None,
@@ -96,7 +100,7 @@ async def catalog_cb_root(callback: CallbackQuery, session_factory, config: BotC
         await callback.answer("Каталог пуст.")
         return
     keyboard = build_catalog_keyboard(
-        _media_base_url(config) or "",
+        _webapp_base_url(config) or "",
         categories,
         category_id=0,
         parent_id=None,
@@ -127,7 +131,7 @@ async def catalog_cb_open(callback: CallbackQuery, callback_data: CatalogCallbac
 
     if children_count > 0:
         keyboard = build_catalog_keyboard(
-            _media_base_url(config) or "",
+            _webapp_base_url(config) or "",
             categories,
             category_id=cat_id,
             parent_id=parent_id,
@@ -143,7 +147,7 @@ async def catalog_cb_open(callback: CallbackQuery, callback_data: CatalogCallbac
         lines = ["🍯 Товары:\n"] + [f"• {p.name} — {p.price} ₽" for p in products]
         product_buttons = [(p.name, CatalogCallbackData(action="product", product_id=p.id).pack()) for p in products]
         keyboard = build_catalog_keyboard(
-            _media_base_url(config) or "",
+            _webapp_base_url(config) or "",
             [],
             category_id=cat_id,
             parent_id=parent_id,
@@ -175,7 +179,7 @@ async def catalog_cb_products(callback: CallbackQuery, callback_data: CatalogCal
     lines = ["🍯 Товары:\n"] + [f"• {p.name} — {p.price} ₽" for p in products]
     product_buttons = [(p.name, CatalogCallbackData(action="product", product_id=p.id).pack()) for p in products]
     keyboard = build_catalog_keyboard(
-        _media_base_url(config) or "",
+        _webapp_base_url(config) or "",
         [],
         category_id=cat_id,
         parent_id=parent_id,
@@ -207,7 +211,7 @@ async def catalog_cb_back(callback: CallbackQuery, callback_data: CatalogCallbac
         async with get_session(session_factory) as session:
             categories = await repo.get_root_categories(session)
         keyboard = build_catalog_keyboard(
-            _media_base_url(config) or "",
+            _webapp_base_url(config) or "",
             categories,
             category_id=0,
             parent_id=None,
@@ -227,7 +231,7 @@ async def catalog_cb_back(callback: CallbackQuery, callback_data: CatalogCallbac
             products_count = await repo.get_products_count_in_category(session, parent_id)
         if children_count > 0:
             keyboard = build_catalog_keyboard(
-                _media_base_url(config) or "",
+                _webapp_base_url(config) or "",
                 categories,
                 category_id=parent_id,
                 parent_id=cat.parent_id,
@@ -243,7 +247,7 @@ async def catalog_cb_back(callback: CallbackQuery, callback_data: CatalogCallbac
             lines = ["🍯 Товары:\n"] + [f"• {p.name} — {p.price} ₽" for p in products]
             product_buttons = [(p.name, CatalogCallbackData(action="product", product_id=p.id).pack()) for p in products]
             keyboard = build_catalog_keyboard(
-                _media_base_url(config) or "",
+                _webapp_base_url(config) or "",
                 [],
                 category_id=parent_id,
                 parent_id=cat.parent_id,
