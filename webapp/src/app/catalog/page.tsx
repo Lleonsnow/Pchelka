@@ -3,8 +3,27 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Package, Search } from "lucide-react";
 import { hideBackButton, setupBackButton } from "@/lib/telegram";
+import { useAsyncData } from "@/lib/useAsyncData";
 import { getCategories, getProducts, type Category, type Product } from "@/lib/api";
+
+type CatalogData =
+  | { mode: "categories"; list: Category[] }
+  | { mode: "products"; list: Product[] };
+
+async function fetchCatalog(categoryId: string | null, search: string): Promise<CatalogData> {
+  if (categoryId) {
+    const parentId = parseInt(categoryId, 10);
+    if (Number.isNaN(parentId)) {
+      throw new Error("Неверная категория");
+    }
+    const list = await getProducts(parentId, search || undefined);
+    return { mode: "products", list };
+  }
+  const list = await getCategories();
+  return { mode: "categories", list };
+}
 
 function CatalogSkeleton({ kind }: { kind: "categories" | "products" }) {
   const count = kind === "categories" ? 6 : 6;
@@ -26,50 +45,20 @@ function CatalogPageContent() {
   const searchParams = useSearchParams();
   const categoryId = searchParams.get("category");
   const productId = searchParams.get("product");
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const parentId = categoryId ? parseInt(categoryId, 10) : undefined;
   const isCategoryList = !categoryId && !productId;
+
+  const { data, loading, error } = useAsyncData(
+    () => fetchCatalog(categoryId, search),
+    [categoryId, search],
+    { enabled: !productId },
+  );
 
   useEffect(() => {
     if (productId) {
       router.push(`/catalog/product/${productId}`);
-      return;
     }
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    if (categoryId) {
-      getProducts(parentId, search || undefined)
-        .then((data) => {
-          if (!cancelled) setProducts(data);
-        })
-        .catch((e) => {
-          if (!cancelled) setError(e.message);
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-    } else {
-      getCategories()
-        .then((data) => {
-          if (!cancelled) setCategories(data);
-        })
-        .catch((e) => {
-          if (!cancelled) setError(e.message);
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [categoryId, parentId, productId, router, search]);
+  }, [productId, router]);
 
   useEffect(() => {
     if (categoryId) {
@@ -78,6 +67,20 @@ function CatalogPageContent() {
     }
     hideBackButton();
   }, [categoryId, router]);
+
+  if (productId) {
+    return (
+      <div className="page">
+        <header className="page__header">
+          <div>
+            <h1 className="page__title">Каталог</h1>
+            <p className="page__subtitle">Переход к товару…</p>
+          </div>
+        </header>
+        <div className="loading">Загрузка…</div>
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -88,7 +91,7 @@ function CatalogPageContent() {
     );
   }
 
-  if (loading) {
+  if (loading || !data) {
     return (
       <div className="page">
         <header className="page__header">
@@ -118,6 +121,9 @@ function CatalogPageContent() {
       </div>
     );
   }
+
+  const categories = data.mode === "categories" ? data.list : [];
+  const products = data.mode === "products" ? data.list : [];
 
   return (
     <div className="page">
@@ -151,7 +157,9 @@ function CatalogPageContent() {
               className="card card--clickable catalogCategoryCard"
             >
               <span className="catalogCategoryCard__iconWrap">
-                <span className="catalogCategoryCard__icon" aria-hidden>🍯</span>
+                <span className="catalogCategoryCard__icon" aria-hidden>
+                  <Package strokeWidth={2} />
+                </span>
               </span>
               <div className="catalogCategoryCard__content">
                 <strong className="catalogCategoryCard__name">{c.name}</strong>
@@ -163,7 +171,9 @@ function CatalogPageContent() {
         <>
           {products.length === 0 ? (
             <div className="empty-state card mt-2">
-              <div className="empty-state__icon">🔎</div>
+              <div className="empty-state__icon" aria-hidden>
+                <Search strokeWidth={1.75} />
+              </div>
               <p className="mb-0">Ничего не нашли</p>
               <p className="hint mt-1 mb-0">Попробуйте изменить запрос поиска.</p>
             </div>
@@ -176,7 +186,9 @@ function CatalogPageContent() {
                       {p.image_url ? (
                         <img src={p.image_url} alt="" className="productCard__img" />
                       ) : (
-                        <span className="productCard__placeholder" aria-hidden>🍯</span>
+                        <span className="productCard__placeholder" aria-hidden>
+                          <Package strokeWidth={1.75} />
+                        </span>
                       )}
                     </div>
                     <div className="productCard__body">

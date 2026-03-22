@@ -2,19 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { LucideIcon } from "lucide-react";
+import { Hexagon, Home, LayoutGrid, ShoppingCart, User } from "lucide-react";
 
 type HeaderLink = {
   href: string;
   label: string;
-  icon: string;
+  Icon: LucideIcon;
   exact?: boolean;
 };
 
 const BASE_LINKS: HeaderLink[] = [
-  { href: "/", label: "Главная", icon: "⌂", exact: true },
-  { href: "/catalog", label: "Каталог", icon: "🍯" },
-  { href: "/cart", label: "Корзина", icon: "🛒" },
-  { href: "/profile", label: "Профиль", icon: "👤" },
+  { href: "/", label: "Главная", Icon: Home, exact: true },
+  { href: "/catalog", label: "Каталог", Icon: LayoutGrid },
+  { href: "/cart", label: "Корзина", Icon: ShoppingCart },
+  { href: "/profile", label: "Профиль", Icon: User },
 ];
 
 function isActiveLink(pathname: string, link: HeaderLink): boolean {
@@ -30,7 +32,7 @@ export function AppHeader() {
       <div className="appHeader__top">
         <Link href="/" className="appHeader__brand" aria-label="Пчёлка — на главную">
           <span className="appHeader__brandMark" aria-hidden>
-            🍯
+            <Hexagon className="appHeader__brandMarkSvg" strokeWidth={2.4} aria-hidden />
           </span>
           <span className="appHeader__brandText">Пчёлка</span>
         </Link>
@@ -39,6 +41,7 @@ export function AppHeader() {
         <nav className="appHeader__nav" aria-label="Навигация">
           {BASE_LINKS.map((l) => {
             const active = isActiveLink(pathname, l);
+            const { Icon } = l;
             return (
               <Link
                 key={l.href}
@@ -47,7 +50,7 @@ export function AppHeader() {
                 aria-current={active ? "page" : undefined}
               >
                 <span className="appHeader__pillIcon" aria-hidden>
-                  {l.icon}
+                  <Icon size={18} strokeWidth={2.25} />
                 </span>
                 <span className="appHeader__pillLabel">{l.label}</span>
               </Link>
@@ -58,4 +61,3 @@ export function AppHeader() {
     </header>
   );
 }
-

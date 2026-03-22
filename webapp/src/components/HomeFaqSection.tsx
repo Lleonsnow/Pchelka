@@ -1,31 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { getFaq, type FaqItem } from "@/lib/api";
+import { useAsyncData } from "@/lib/useAsyncData";
 
 export function HomeFaqSection() {
-  const [items, setItems] = useState<FaqItem[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    getFaq()
-      .then((data) => {
-        if (!cancelled) setItems(data);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Не удалось загрузить FAQ");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { data: items, loading, error } = useAsyncData<FaqItem[]>(() => getFaq(), []);
 
   if (items !== null && items.length === 0) {
     return null;
   }
 
-  if (items === null && !error) {
+  if (loading && !items && !error) {
     return (
       <section className="mt-2 card blockCard faqBlock" aria-busy="true">
         <p className="faqBlock__loading">Загрузка вопросов…</p>
@@ -33,7 +18,7 @@ export function HomeFaqSection() {
     );
   }
 
-  if (error && items === null) {
+  if (error && !items) {
     return (
       <section className="mt-2 card blockCard faqBlock faqBlock--error">
         <strong className="blockCard__title">Частые вопросы</strong>

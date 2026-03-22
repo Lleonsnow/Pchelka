@@ -1,54 +1,75 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { setupBackButton, hideBackButton } from "@/lib/telegram";
-import { getProduct, addToCart, type ProductDetail } from "@/lib/api";
+import { useAsyncData } from "@/lib/useAsyncData";
+import { ProductDetailView } from "@/components/ProductDetailView";
+import {
+  getProduct,
+  getCart,
+  addToCart,
+  updateCartItem,
+  removeFromCart,
+  type ProductDetail,
+} from "@/lib/api";
 
 export default function ProductPage() {
   const params = useParams();
   const router = useRouter();
   const id = Number(params.id);
-  const [product, setProduct] = useState<ProductDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [cartBusy, setCartBusy] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    getProduct(id)
-      .then((data) => {
-        if (!cancelled) setProduct(data);
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+  const { data: product, loading, error, setError } = useAsyncData<ProductDetail>(
+    () => getProduct(id),
+    [id],
+  );
+
+  const { data: cart, setData: setCart } = useAsyncData(() => getCart(), [id]);
+
+  const quantityInCart = useMemo(() => {
+    const item = cart?.items.find((i) => i.product_id === id);
+    return item?.quantity ?? 0;
+  }, [cart, id]);
 
   useEffect(() => {
     setupBackButton(() => router.back());
     return () => hideBackButton();
   }, [router]);
 
-  const handleAddToCart = () => {
-    if (!product || adding) return;
-    setAdding(true);
+  const handleAddToCart = useCallback(() => {
+    if (!product || cartBusy) return;
+    setCartBusy(true);
     addToCart(product.id, 1)
-      .then(() => {
-        setAdding(false);
-      })
+      .then(setCart)
       .catch((e) => {
         setError(e.message);
-        setAdding(false);
+      })
+      .finally(() => {
+        setCartBusy(false);
       });
-  };
+  }, [product, cartBusy, setCart, setError]);
+
+  const handleCartDelta = useCallback(
+    (delta: number) => {
+      if (!product || cartBusy) return;
+      const next = quantityInCart + delta;
+      setCartBusy(true);
+      const done = () => setCartBusy(false);
+      if (next < 1) {
+        removeFromCart(product.id)
+          .then(setCart)
+          .catch((e) => setError(e.message))
+          .finally(done);
+        return;
+      }
+      updateCartItem(product.id, next)
+        .then(setCart)
+        .catch((e) => setError(e.message))
+        .finally(done);
+    },
+    [product, cartBusy, quantityInCart, setCart, setError],
+  );
 
   if (error) {
     return (
@@ -68,32 +89,13 @@ export default function ProductPage() {
 
   return (
     <div className="page page--product">
-      <article className="productCardDetail">
-        <div className="productCardDetail__media">
-          {product.image_urls?.length > 0 ? (
-            <img src={product.image_urls[0]} alt={product.name} className="productCardDetail__img" />
-          ) : (
-            <span className="productCardDetail__placeholder" aria-hidden>🍯</span>
-          )}
-        </div>
-        <div className="productCardDetail__body">
-          <h1 className="productCardDetail__title">{product.name}</h1>
-          <p className="productCardDetail__price">{product.price} ₽</p>
-          {product.description && (
-            <p className="productCardDetail__desc">{product.description}</p>
-          )}
-          <div className="productCardDetail__action">
-            <button
-              type="button"
-              onClick={handleAddToCart}
-              disabled={adding}
-              className="btn btn--primary btn--full"
-            >
-              {adding ? "Добавляем…" : "В корзину"}
-            </button>
-          </div>
-        </div>
-      </article>
+      <ProductDetailView
+        product={product}
+        quantityInCart={quantityInCart}
+        cartBusy={cartBusy}
+        onAddToCart={handleAddToCart}
+        onCartDelta={handleCartDelta}
+      />
     </div>
   );
 }

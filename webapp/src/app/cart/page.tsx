@@ -1,34 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ShoppingCart, Trash2 } from "lucide-react";
 import { setupBackButton, hideBackButton } from "@/lib/telegram";
-import {
-  getCart,
-  updateCartItem,
-  removeFromCart,
-  clearCart,
-  type CartResponse,
-} from "@/lib/api";
+import { useAsyncData } from "@/lib/useAsyncData";
+import { getCart, updateCartItem, removeFromCart, clearCart } from "@/lib/api";
 
 export default function CartPage() {
   const router = useRouter();
-  const [data, setData] = useState<CartResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = () => {
-    setLoading(true);
-    getCart()
-      .then(setData)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
+  const { data, setData, loading, error, setError, reload } = useAsyncData(
+    () => getCart(),
+    [],
+  );
 
   useEffect(() => {
     setupBackButton(() => router.push("/"));
@@ -62,6 +47,9 @@ export default function CartPage() {
     return (
       <div className="page">
         <p className="error-msg">{error}</p>
+        <button type="button" onClick={() => reload()} className="btn btn--secondary mt-2">
+          Повторить
+        </button>
         <Link href="/" className="btn btn--secondary mt-2">На главную</Link>
       </div>
     );
@@ -89,7 +77,9 @@ export default function CartPage() {
 
       {items.length === 0 ? (
         <div className="empty-state empty-state--cart">
-          <span className="empty-state__icon" aria-hidden>🛒</span>
+          <span className="empty-state__icon" aria-hidden>
+            <ShoppingCart strokeWidth={1.75} />
+          </span>
           <p className="empty-state__text">Корзина пуста</p>
           <p className="empty-state__hint">Добавьте товары из каталога</p>
         </div>
@@ -126,10 +116,11 @@ export default function CartPage() {
                   </div>
                   <button
                     type="button"
-                    aria-label="Удалить"
+                    aria-label="Удалить из корзины"
                     onClick={() => handleRemove(item.product_id)}
-                    className="cartItem__remove"
+                    className="btn btn--danger btn--sm cartItem__removeBtn"
                   >
+                    <Trash2 size={16} strokeWidth={2} aria-hidden />
                     Удалить
                   </button>
                 </div>

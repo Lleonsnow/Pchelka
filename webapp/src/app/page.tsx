@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LayoutGrid, ShoppingCart } from "lucide-react";
 import { HomeFaqSection } from "@/components/HomeFaqSection";
 
 export default function HomePage() {
@@ -16,7 +17,9 @@ export default function HomePage() {
       <section className="mt-2 homeQuickGrid">
         <Link href="/catalog" className="card card--clickable homeCard">
           <span className="homeCard__iconWrap">
-            <span className="homeCard__icon" aria-hidden>🍯</span>
+            <span className="homeCard__icon" aria-hidden>
+              <LayoutGrid strokeWidth={2} />
+            </span>
           </span>
           <div className="homeCard__content">
             <strong className="homeCard__title">Каталог</strong>
@@ -26,7 +29,9 @@ export default function HomePage() {
 
         <Link href="/cart" className="card card--clickable homeCard">
           <span className="homeCard__iconWrap">
-            <span className="homeCard__icon" aria-hidden>🛒</span>
+            <span className="homeCard__icon" aria-hidden>
+              <ShoppingCart strokeWidth={2} />
+            </span>
           </span>
           <div className="homeCard__content">
             <strong className="homeCard__title">Корзина</strong>
