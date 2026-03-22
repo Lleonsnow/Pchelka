@@ -1,6 +1,8 @@
-# Production: единая точка входа через nginx, образы без монтирования кода.
-# Запуск: docker compose -f docker-compose.prod.yml up -d
-# Перед первым запуском: DEBUG=0, надёжные SECRET_KEY/POSTGRES_PASSWORD, ALLOWED_HOSTS с вашим доменом.
+# Production: единая точка входа через nginx (TLS), образы без монтирования кода.
+# Запуск: docker compose -f docker-compose.prod.yml up -d --build
+# В .env: NGINX_SERVER_NAME, TELEGRAM_WEBAPP_HOST=https://..., MEDIA_BASE_URL=https://..., ALLOWED_HOSTS с доменом.
+# Первый запуск без сертификатов: up -d db backend webapp bot → ./scripts/certbot-standalone.sh → up -d nginx
+# (скрипт: set -a && source .env && set +a)
 
 services:
   db:
@@ -56,20 +58,38 @@ services:
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
+      BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:8000}
     depends_on:
       - backend
     restart: unless-stopped
 
   nginx:
-    image: nginx:1.27-alpine
+    build: ./nginx
+    image: tg-shop-nginx:prod
     ports:
       - "${NGINX_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    environment:
+      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME}
+      SSL_LETSENCRYPT_HOST: ${SSL_LETSENCRYPT_HOST:-}
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx.prod.conf.template:/etc/nginx/nginx.conf.template:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./certbot-webroot:/var/www/certbot:ro
+      - backend_media:/var/www/media:ro
     depends_on:
       - backend
       - webapp
     restart: unless-stopped
+
+  # Выпуск/продление: docker compose -f docker-compose.prod.yml --profile certbot run --rm certbot ...
+  certbot:
+    image: certbot/certbot:v2.11.0
+    profiles:
+      - certbot
+    volumes:
+      - ./ssl:/etc/letsencrypt
+      - ./certbot-webroot:/var/www/certbot
 
 volumes:
   postgres_data:
