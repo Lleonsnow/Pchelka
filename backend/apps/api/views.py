@@ -1,14 +1,15 @@
-from decimal import Decimal
+from typing import Union
 
+from django.conf import settings
+from django.db.models import Count, Prefetch, Q
 from django.db import transaction
-from django.db.models import Q
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.catalog.models import Category, Product
+from apps.catalog.models import Category, Product, ProductImage
 from apps.faq.models import FAQ
 from apps.cart.models import Cart, CartItem
 from apps.orders.models import Order, OrderItem
@@ -33,6 +34,54 @@ def _get_cart(user: TelegramUser) -> Cart:
     return cart
 
 
+def _require_telegram_user(request: Request) -> Union[TelegramUser, Response]:
+    user = request.user
+    if not user or not isinstance(user, TelegramUser):
+        return Response({"detail": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+    return user
+
+
+def _cart_response_payload(cart: Cart) -> dict:
+    items = cart.items.select_related("product").all()
+    total = sum((item.product.price * item.quantity) for item in items)
+    return {
+        "items": CartItemSerializer(items, many=True).data,
+        "total": str(total),
+    }
+
+
+class WebAppConfigView(APIView):
+    """Публичный конфиг: username бота и short name Mini App (из BotFather)."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request: Request):
+        u = (getattr(settings, "TELEGRAM_BOT_USERNAME", "") or "").strip().lstrip("@")
+        short = (getattr(settings, "TELEGRAM_MINIAPP_SHORT_NAME", "") or "").strip()
+        return Response(
+            {
+                "telegram_bot_username": u,
+                "miniapp_short_name": short,
+            }
+        )
+
+
+class MeView(APIView):
+    """Профиль текущего пользователя (телефон из бота после «Поделиться контактом»)."""
+
+    def get(self, request: Request):
+        user = _require_telegram_user(request)
+        if isinstance(user, Response):
+            return user
+        return Response(
+            {
+                "phone": user.phone or "",
+                "first_name": user.first_name or "",
+                "last_name": user.last_name or "",
+            }
+        )
+
+
 class FAQListView(APIView):
     """Публичный список FAQ для главной WebApp (без обязательной авторизации)."""
 
@@ -55,7 +104,7 @@ class CategoryListView(APIView):
                 qs = Category.objects.filter(parent_id=int(parent_id))
             except ValueError:
                 qs = Category.objects.none()
-        qs = qs.order_by("order", "name")
+        qs = qs.annotate(children_count=Count("children")).order_by("order", "name")
         serializer = CategorySerializer(qs, many=True)
         return Response(serializer.data)
 
@@ -66,7 +115,13 @@ class ProductListView(APIView):
     def get(self, request: Request):
         category_id = request.query_params.get("category_id")
         search = (request.query_params.get("search") or "").strip()
-        qs = Product.objects.filter(is_active=True).select_related("category")
+        qs = (
+            Product.objects.filter(is_active=True)
+            .select_related("category")
+            .prefetch_related(
+                Prefetch("images", queryset=ProductImage.objects.order_by("order"))
+            )
+        )
         if category_id:
             qs = qs.filter(category_id=category_id)
         if search:
@@ -79,11 +134,19 @@ class ProductListView(APIView):
 
 
 class ProductDetailView(APIView):
-    """Один товар по id."""
+    """Один товар по id (публичный GET — превью ссылок и generateMetadata в Next)."""
+
+    permission_classes = [AllowAny]
 
     def get(self, request: Request, pk: int):
         try:
-            product = Product.objects.prefetch_related("images").get(pk=pk, is_active=True)
+            product = (
+                Product.objects.filter(is_active=True)
+                .prefetch_related(
+                    Prefetch("images", queryset=ProductImage.objects.order_by("order"))
+                )
+                .get(pk=pk)
+            )
         except Product.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = ProductDetailSerializer(product, context={"request": request})
@@ -94,24 +157,16 @@ class CartView(APIView):
     """GET — содержимое корзины; DELETE — очистить."""
 
     def get(self, request: Request):
-        user = request.user
-        if not user or not isinstance(user, TelegramUser):
-            return Response({"detail": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        user = _require_telegram_user(request)
+        if isinstance(user, Response):
+            return user
         cart = _get_cart(user)
-        items = cart.items.select_related("product").all()
-        total = sum(
-            (item.product.price * item.quantity) for item in items
-        )
-        data = {
-            "items": CartItemSerializer(items, many=True).data,
-            "total": str(total),
-        }
-        return Response(data)
+        return Response(_cart_response_payload(cart))
 
     def delete(self, request: Request):
-        user = request.user
-        if not user or not isinstance(user, TelegramUser):
-            return Response({"detail": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        user = _require_telegram_user(request)
+        if isinstance(user, Response):
+            return user
         cart = _get_cart(user)
         cart.items.all().delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -121,9 +176,9 @@ class CartAddView(APIView):
     """Добавить товар в корзину (или увеличить количество)."""
 
     def post(self, request: Request):
-        user = request.user
-        if not user or not isinstance(user, TelegramUser):
-            return Response({"detail": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        user = _require_telegram_user(request)
+        if isinstance(user, Response):
+            return user
         ser = CartAddSerializer(data=request.data)
         if not ser.is_valid():
             return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -138,21 +193,19 @@ class CartAddView(APIView):
         if not created:
             item.quantity += quantity
             item.save(update_fields=["quantity"])
-        items = cart.items.select_related("product").all()
-        total = sum((i.product.price * i.quantity) for i in items)
-        return Response({
-            "items": CartItemSerializer(items, many=True).data,
-            "total": str(total),
-        }, status=status.HTTP_201_CREATED)
+        return Response(
+            _cart_response_payload(cart),
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class CartUpdateView(APIView):
     """Изменить количество по product_id (или удалить при quantity=0)."""
 
     def patch(self, request: Request, product_id: int):
-        user = request.user
-        if not user or not isinstance(user, TelegramUser):
-            return Response({"detail": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        user = _require_telegram_user(request)
+        if isinstance(user, Response):
+            return user
         ser = CartUpdateSerializer(data=request.data)
         if not ser.is_valid():
             return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -166,40 +219,30 @@ class CartUpdateView(APIView):
         else:
             item.quantity = quantity
             item.save(update_fields=["quantity"])
-        items = cart.items.select_related("product").all()
-        total = sum((i.product.price * i.quantity) for i in items)
-        return Response({
-            "items": CartItemSerializer(items, many=True).data,
-            "total": str(total),
-        })
+        return Response(_cart_response_payload(cart))
 
 
 class CartRemoveView(APIView):
     """Удалить товар из корзины."""
 
     def delete(self, request: Request, product_id: int):
-        user = request.user
-        if not user or not isinstance(user, TelegramUser):
-            return Response({"detail": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        user = _require_telegram_user(request)
+        if isinstance(user, Response):
+            return user
         cart = _get_cart(user)
         deleted, _ = cart.items.filter(product_id=product_id).delete()
         if not deleted:
             return Response({"detail": "Not in cart"}, status=status.HTTP_404_NOT_FOUND)
-        items = cart.items.select_related("product").all()
-        total = sum((i.product.price * i.quantity) for i in items)
-        return Response({
-            "items": CartItemSerializer(items, many=True).data,
-            "total": str(total),
-        })
+        return Response(_cart_response_payload(cart))
 
 
 class OrderListView(APIView):
     """Список заказов текущего пользователя."""
 
     def get(self, request: Request):
-        user = request.user
-        if not user or not isinstance(user, TelegramUser):
-            return Response({"detail": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        user = _require_telegram_user(request)
+        if isinstance(user, Response):
+            return user
         orders = Order.objects.filter(user=user).order_by("-created_at")[:50]
         return Response(OrderListSerializer(orders, many=True).data)
 
@@ -208,9 +251,9 @@ class OrderCreateView(APIView):
     """Создать заказ из текущей корзины."""
 
     def post(self, request: Request):
-        user = request.user
-        if not user or not isinstance(user, TelegramUser):
-            return Response({"detail": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        user = _require_telegram_user(request)
+        if isinstance(user, Response):
+            return user
         ser = OrderCreateSerializer(data=request.data)
         if not ser.is_valid():
             return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)

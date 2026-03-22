@@ -14,6 +14,8 @@ BOT_INTERNAL_URL = _env.BOT_INTERNAL_URL or ""
 TELEGRAM_BOT_TOKEN = (getattr(_env, "BOT_TOKEN", "") or "").strip()
 TELEGRAM_WEBAPP_HOST = getattr(_env, "TELEGRAM_WEBAPP_HOST", "") or ""
 DEV_WEBAPP_TELEGRAM_ID = getattr(_env, "DEV_WEBAPP_TELEGRAM_ID", "") or ""
+TELEGRAM_BOT_USERNAME = (_env.TELEGRAM_BOT_USERNAME or "").strip().lstrip("@")
+TELEGRAM_MINIAPP_SHORT_NAME = (_env.TELEGRAM_MINIAPP_SHORT_NAME or "").strip()
 
 CORS_ALLOWED_ORIGINS = list({
     *([] if not TELEGRAM_WEBAPP_HOST else [TELEGRAM_WEBAPP_HOST.rstrip("/")]),

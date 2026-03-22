@@ -9,14 +9,13 @@ from apps.orders.models import Order, OrderItem
 
 
 class CategorySerializer(serializers.ModelSerializer):
-    children_count = serializers.SerializerMethodField()
+    """children_count задаётся в queryset через annotate(Count(\"children\"))."""
+
+    children_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Category
         fields = ["id", "name", "slug", "order", "parent", "children_count"]
-
-    def get_children_count(self, obj):
-        return obj.children.count() if obj.id else 0
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
@@ -29,8 +28,8 @@ class ProductImageSerializer(serializers.ModelSerializer):
     def get_url(self, obj):
         request = self.context.get("request")
         if request and obj.image:
-            return request.build_absolute_uri(obj.image.url)
-        return obj.image.url if obj.image else ""
+            return (request.build_absolute_uri(obj.image.url) or "").strip()
+        return (obj.image.url or "").strip() if obj.image else ""
 
 
 class ProductListSerializer(serializers.ModelSerializer):
@@ -42,13 +41,17 @@ class ProductListSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "slug", "price", "category", "image_url"]
 
     def get_image_url(self, obj):
-        first = obj.images.order_by("order").first()
-        if not first or not first.image:
+        first = None
+        for img in obj.images.all():
+            if img.image:
+                first = img
+                break
+        if not first:
             return None
         request = self.context.get("request")
         if request:
-            return request.build_absolute_uri(first.image.url)
-        return first.image.url
+            return (request.build_absolute_uri(first.image.url) or "").strip()
+        return (first.image.url or "").strip()
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):
@@ -61,11 +64,19 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
     def get_image_urls(self, obj):
         request = self.context.get("request")
-        qs = obj.images.order_by("order")
-        return [
-            request.build_absolute_uri(img.image.url) if request and img.image else (img.image.url or "")
-            for img in qs
-        ]
+        out: list[str] = []
+        for img in obj.images.all():
+            if not img.image:
+                continue
+            u = (
+                request.build_absolute_uri(img.image.url)
+                if request
+                else (img.image.url or "")
+            )
+            u = (u or "").strip()
+            if u:
+                out.append(u)
+        return out
 
 
 class CartItemSerializer(serializers.ModelSerializer):
