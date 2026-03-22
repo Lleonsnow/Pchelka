@@ -158,12 +158,28 @@ export async function getCategories(parentId?: number): Promise<Category[]> {
   return apiFetch<Category[]>(`/catalog/categories/${q}`);
 }
 
-export async function getProducts(categoryId?: number, search?: string): Promise<Product[]> {
+export type ProductListResponse = {
+  count: number;
+  results: Product[];
+};
+
+export type GetProductsOptions = {
+  limit?: number;
+  offset?: number;
+};
+
+export async function getProducts(
+  categoryId?: number,
+  search?: string,
+  options?: GetProductsOptions,
+): Promise<ProductListResponse> {
   const params = new URLSearchParams();
   if (categoryId != null) params.set("category_id", String(categoryId));
   if (search) params.set("search", search);
+  if (options?.limit != null) params.set("limit", String(options.limit));
+  if (options?.offset != null) params.set("offset", String(options.offset));
   const q = params.toString() ? `?${params}` : "";
-  return apiFetch<Product[]>(`/catalog/products/${q}`);
+  return apiFetch<ProductListResponse>(`/catalog/products/${q}`);
 }
 
 export async function getProduct(id: number): Promise<ProductDetail> {

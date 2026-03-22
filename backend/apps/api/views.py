@@ -25,7 +25,7 @@ from .cache import (
     key_categories,
     key_faq,
     key_product_detail,
-    key_products_list,
+    key_products_page,
     public_cache_version,
 )
 from .serializers import (
@@ -140,14 +140,30 @@ class CategoryListView(APIView):
         return _with_public_cache_control(Response(data))
 
 
+def _parse_products_pagination(request: Request) -> tuple[int, int]:
+    try:
+        limit = int(request.query_params.get("limit", "24"))
+    except ValueError:
+        limit = 24
+    limit = max(1, min(limit, 60))
+    try:
+        offset = int(request.query_params.get("offset", "0"))
+    except ValueError:
+        offset = 0
+    offset = max(0, offset)
+    return limit, offset
+
+
 class ProductListView(APIView):
-    """Товары по категории или поиск по имени/описанию."""
+    """Товары по категории или поиск по имени/описанию. Пагинация: limit (1–60), offset."""
 
     def get(self, request: Request):
         category_id = (request.query_params.get("category_id") or "").strip()
         search = (request.query_params.get("search") or "").strip()
+        limit, offset = _parse_products_pagination(request)
         host = request.get_host()
-        ck = key_products_list(host, category_id, search, public_cache_version())
+        v = public_cache_version()
+        ck = key_products_page(host, category_id, search, v, limit, offset)
         data = cache_get_json(ck)
         if data is None:
             qs = (
@@ -163,10 +179,15 @@ class ProductListView(APIView):
                 qs = qs.filter(
                     Q(name__icontains=search) | Q(description__icontains=search)
                 )
-            qs = qs.order_by("-created_at")[:100]
-            data = ProductListSerializer(
-                qs, many=True, context={"request": request}
-            ).data
+            qs = qs.order_by("-created_at")
+            total = qs.count()
+            page = qs[offset : offset + limit]
+            data = {
+                "count": total,
+                "results": ProductListSerializer(
+                    page, many=True, context={"request": request}
+                ).data,
+            }
             cache_set_json(ck, data, PUBLIC_CACHE_TTL)
         return _with_public_cache_control(Response(data))
 

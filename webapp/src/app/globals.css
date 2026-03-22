@@ -735,6 +735,12 @@ ul {
   min-width: 0;
 }
 
+/* Якорь для IntersectionObserver при подгрузке товаров */
+.catalogLoadSentinel {
+  min-height: 8px;
+  width: 100%;
+}
+
 .skeletonCard {
   border-radius: var(--radius);
   border: 1px solid var(--color-border);

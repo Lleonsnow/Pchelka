@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Package, Search } from "lucide-react";
@@ -8,22 +8,7 @@ import { hideBackButton, setupBackButton } from "@/lib/telegram";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { getCategories, getProducts, type Category, type Product } from "@/lib/api";
 
-type CatalogData =
-  | { mode: "categories"; list: Category[] }
-  | { mode: "products"; list: Product[] };
-
-async function fetchCatalog(categoryId: string | null, search: string): Promise<CatalogData> {
-  if (categoryId) {
-    const parentId = parseInt(categoryId, 10);
-    if (Number.isNaN(parentId)) {
-      throw new Error("Неверная категория");
-    }
-    const list = await getProducts(parentId, search || undefined);
-    return { mode: "products", list };
-  }
-  const list = await getCategories();
-  return { mode: "categories", list };
-}
+const PRODUCTS_PAGE_SIZE = 24;
 
 function CatalogSkeleton({ kind }: { kind: "categories" | "products" }) {
   const count = kind === "categories" ? 6 : 6;
@@ -48,11 +33,97 @@ function CatalogPageContent() {
   const [search, setSearch] = useState("");
   const isCategoryList = !categoryId && !productId;
 
-  const { data, loading, error } = useAsyncData(
-    () => fetchCatalog(categoryId, search),
-    [categoryId, search],
-    { enabled: !productId },
+  const { data: categories, loading: catLoading, error: catError } = useAsyncData(
+    () => getCategories(),
+    [],
+    { enabled: isCategoryList },
   );
+
+  const parentId = categoryId ? parseInt(categoryId, 10) : NaN;
+  const [products, setProducts] = useState<Product[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [prodLoading, setProdLoading] = useState(false);
+  const [prodLoadingMore, setProdLoadingMore] = useState(false);
+  const [prodError, setProdError] = useState<string | null>(null);
+  const fetchGenRef = useRef(0);
+  const loadingMoreGuard = useRef(false);
+  const nextOffsetRef = useRef(0);
+
+  useEffect(() => {
+    nextOffsetRef.current = products.length;
+  }, [products.length]);
+
+  useEffect(() => {
+    if (!categoryId || productId || Number.isNaN(parentId)) {
+      return;
+    }
+    const gen = ++fetchGenRef.current;
+    let cancelled = false;
+    setProdLoading(true);
+    setProdError(null);
+    setProducts([]);
+    setTotalCount(0);
+    nextOffsetRef.current = 0;
+    getProducts(parentId, search || undefined, { limit: PRODUCTS_PAGE_SIZE, offset: 0 })
+      .then((r) => {
+        if (cancelled || gen !== fetchGenRef.current) return;
+        setProducts(r.results);
+        setTotalCount(r.count);
+      })
+      .catch((e) => {
+        if (cancelled || gen !== fetchGenRef.current) return;
+        setProdError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (cancelled || gen !== fetchGenRef.current) return;
+        setProdLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [categoryId, search, productId, parentId]);
+
+  const loadMore = useCallback(async () => {
+    if (!categoryId || productId || Number.isNaN(parentId)) return;
+    if (prodLoading || loadingMoreGuard.current) return;
+    const offset = nextOffsetRef.current;
+    if (offset >= totalCount) return;
+    const genAtStart = fetchGenRef.current;
+    loadingMoreGuard.current = true;
+    setProdLoadingMore(true);
+    try {
+      const { results, count } = await getProducts(parentId, search || undefined, {
+        limit: PRODUCTS_PAGE_SIZE,
+        offset,
+      });
+      if (genAtStart !== fetchGenRef.current) return;
+      setProducts((prev) => [...prev, ...results]);
+      setTotalCount(count);
+    } catch (e) {
+      if (genAtStart !== fetchGenRef.current) return;
+      setProdError(e instanceof Error ? e.message : String(e));
+    } finally {
+      loadingMoreGuard.current = false;
+      setProdLoadingMore(false);
+    }
+  }, [categoryId, productId, parentId, search, totalCount, prodLoading]);
+
+  const hasMore = products.length < totalCount;
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!categoryId || productId || !hasMore) return;
+    const node = sentinelRef.current;
+    if (!node) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) void loadMore();
+      },
+      { root: null, rootMargin: "320px", threshold: 0 },
+    );
+    obs.observe(node);
+    return () => obs.disconnect();
+  }, [categoryId, productId, hasMore, loadMore]);
 
   useEffect(() => {
     if (productId) {
@@ -82,16 +153,21 @@ function CatalogPageContent() {
     );
   }
 
+  const error = isCategoryList ? catError : prodError;
   if (error) {
     return (
       <div className="page">
         <p className="error-msg">{error}</p>
-        <Link href="/catalog" className="btn btn--secondary mt-2">← Каталог</Link>
+        <Link href="/catalog" className="btn btn--secondary mt-2">
+          ← Каталог
+        </Link>
       </div>
     );
   }
 
-  if (loading || !data) {
+  const loading = isCategoryList ? catLoading : prodLoading && products.length === 0;
+
+  if (loading || (isCategoryList && !categories)) {
     return (
       <div className="page">
         <header className="page__header">
@@ -122,8 +198,7 @@ function CatalogPageContent() {
     );
   }
 
-  const categories = data.mode === "categories" ? data.list : [];
-  const products = data.mode === "products" ? data.list : [];
+  const categoryRows = categories ?? [];
 
   return (
     <div className="page">
@@ -150,7 +225,7 @@ function CatalogPageContent() {
 
       {isCategoryList ? (
         <div className={`grid grid--categories mt-2`}>
-          {categories.map((c) => (
+          {categoryRows.map((c) => (
             <Link
               key={c.id}
               href={`/catalog?category=${c.id}`}
@@ -178,27 +253,33 @@ function CatalogPageContent() {
               <p className="hint mt-1 mb-0">Попробуйте изменить запрос поиска.</p>
             </div>
           ) : (
-            <ul className="grid grid--products mt-2 list-divider">
-              {products.map((p) => (
-                <li key={p.id}>
-                  <Link href={`/catalog/product/${p.id}`} className="card card--clickable productCard">
-                    <div className="productCard__media">
-                      {p.image_url ? (
-                        <img src={p.image_url} alt="" className="productCard__img" />
-                      ) : (
-                        <span className="productCard__placeholder" aria-hidden>
-                          <Package strokeWidth={1.75} />
-                        </span>
-                      )}
-                    </div>
-                    <div className="productCard__body">
-                      <strong className="productCard__name">{p.name}</strong>
-                      <span className="productCard__price">{p.price} ₽</span>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="grid grid--products mt-2 list-divider">
+                {products.map((p) => (
+                  <li key={p.id}>
+                    <Link href={`/catalog/product/${p.id}`} className="card card--clickable productCard">
+                      <div className="productCard__media">
+                        {p.image_url ? (
+                          <img src={p.image_url} alt="" className="productCard__img" />
+                        ) : (
+                          <span className="productCard__placeholder" aria-hidden>
+                            <Package strokeWidth={1.75} />
+                          </span>
+                        )}
+                      </div>
+                      <div className="productCard__body">
+                        <strong className="productCard__name">{p.name}</strong>
+                        <span className="productCard__price">{p.price} ₽</span>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              {hasMore && <div ref={sentinelRef} className="catalogLoadSentinel" aria-hidden />}
+              {prodLoadingMore && (
+                <p className="hint mt-2 mb-0 text-center">Загружаем ещё…</p>
+              )}
+            </>
           )}
         </>
       )}

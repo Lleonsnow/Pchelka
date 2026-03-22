@@ -37,9 +37,11 @@ def key_categories(parent_param: str, v: int) -> str:
     return f"api:categories:{parent_param}:v{v}"
 
 
-def key_products_list(host: str, category_id: str, search: str, v: int) -> str:
+def key_products_page(
+    host: str, category_id: str, search: str, v: int, limit: int, offset: int
+) -> str:
     sh = hashlib.sha256(search.encode("utf-8")).hexdigest()[:20]
-    return f"api:products:{host}:{category_id or '-'}:{sh}:v{v}"
+    return f"api:products:{host}:{category_id or '-'}:{sh}:l{limit}:o{offset}:v{v}"
 
 
 def key_product_detail(host: str, pk: int, v: int) -> str:
@@ -62,6 +64,6 @@ __all__ = [
     "key_categories",
     "key_faq",
     "key_product_detail",
-    "key_products_list",
+    "key_products_page",
     "public_cache_version",
 ]
