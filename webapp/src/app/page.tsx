@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { HomeFaqSection } from "@/components/HomeFaqSection";
 
 export default function HomePage() {
   return (
@@ -33,6 +34,8 @@ export default function HomePage() {
           </div>
         </Link>
       </section>
+
+      <HomeFaqSection />
 
       <section className="mt-2 card blockCard">
         <strong className="blockCard__title">Почему это удобно</strong>

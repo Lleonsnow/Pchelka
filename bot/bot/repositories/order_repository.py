@@ -119,7 +119,8 @@ async def get_order_for_admin(session: AsyncSession, order_id: int) -> dict | No
     """Заказ с позициями и telegram_id пользователя для админки."""
     result = await session.execute(
         text("""
-            SELECT o.id, o.status, o.full_name, o.address, o.phone, o.total, o.created_at, u.telegram_id
+            SELECT o.id, o.status, o.full_name, o.address, o.phone, o.total, o.created_at,
+                   u.telegram_id, u.username
             FROM orders_order o
             JOIN users_telegramuser u ON u.id = o.user_id
             WHERE o.id = :oid

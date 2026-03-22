@@ -63,7 +63,7 @@ class TelegramWebAppAuthentication(authentication.BaseAuthentication):
         telegram_id = user_data.get("id")
         if not telegram_id:
             return None
-        telegram_user, _ = TelegramUser.objects.get_or_create(
+        telegram_user, _ = TelegramUser.objects.update_or_create(
             telegram_id=telegram_id,
             defaults={
                 "username": user_data.get("username") or "",

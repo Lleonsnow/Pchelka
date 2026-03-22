@@ -61,5 +61,29 @@ class LoggingMiddleware(BaseMiddleware):
             tg_id = _get_telegram_id(event)
             update_type = _get_update_type(event)
             ts = datetime.now(timezone.utc).isoformat()
-            logger.info("update telegram_id=%s type=%s timestamp=%s", tg_id, update_type, ts)
+            chat_id = None
+            chat_type = None
+            text_preview = None
+            if event.message and event.message.chat:
+                chat_id = event.message.chat.id
+                chat_type = event.message.chat.type
+                text_preview = (event.message.text or event.message.caption or "")[:120]
+            elif event.my_chat_member and event.my_chat_member.chat:
+                chat_id = event.my_chat_member.chat.id
+                chat_type = event.my_chat_member.chat.type
+                text_preview = f"new_status={event.my_chat_member.new_chat_member.status}"
+            elif event.callback_query:
+                if event.callback_query.message and event.callback_query.message.chat:
+                    chat_id = event.callback_query.message.chat.id
+                    chat_type = event.callback_query.message.chat.type
+                text_preview = (event.callback_query.data or "")[:120]
+            logger.info(
+                "update telegram_id=%s type=%s chat_id=%s chat_type=%s text=%r timestamp=%s",
+                tg_id,
+                update_type,
+                chat_id,
+                chat_type,
+                text_preview,
+                ts,
+            )
         return await handler(event, data)

@@ -64,6 +64,32 @@ async def get_subscription_channels(session: AsyncSession) -> list[SubscriptionC
     ]
 
 
+async def set_admin_chat_id_if_empty(session: AsyncSession, chat_id: int) -> bool:
+    """
+    Один раз сохраняет admin_chat_id, если он ещё пустой.
+    Возвращает True, если значение было установлено.
+    """
+    result = await session.execute(
+        text("""
+            UPDATE bot_settings_botsettings
+            SET admin_chat_id = :chat_id
+            WHERE id = (
+                SELECT id
+                FROM bot_settings_botsettings
+                WHERE admin_chat_id IS NULL
+                ORDER BY id
+                LIMIT 1
+            )
+        """),
+        {"chat_id": chat_id},
+    )
+    updated = (result.rowcount or 0) > 0
+    if updated:
+        global _bot_settings_cache
+        _bot_settings_cache = (0.0, None)
+    return updated
+
+
 async def get_bot_settings_cached(session_factory, get_session) -> BotSettingsData | None:
     global _bot_settings_cache
     now = _now()

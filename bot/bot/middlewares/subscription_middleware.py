@@ -34,6 +34,12 @@ class SubscriptionMiddleware(BaseMiddleware):
         if not isinstance(event, Update):
             return await handler(event, data)
 
+        # Проверку подписки применяем только к личным диалогам.
+        if event.message and event.message.chat and event.message.chat.type != "private":
+            return await handler(event, data)
+        if event.callback_query and event.callback_query.message and event.callback_query.message.chat.type != "private":
+            return await handler(event, data)
+
         user_id = None
         if event.message and event.message.from_user:
             user_id = event.message.from_user.id

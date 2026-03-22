@@ -1,14 +1,18 @@
 from decimal import Decimal
 
+from django.db import transaction
 from django.db.models import Q
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.catalog.models import Category, Product
+from apps.faq.models import FAQ
 from apps.cart.models import Cart, CartItem
 from apps.orders.models import Order, OrderItem
+from apps.orders.signals import notify_bot_admin_new_order
 from apps.users.models import TelegramUser
 
 from .serializers import (
@@ -20,12 +24,23 @@ from .serializers import (
     CartUpdateSerializer,
     OrderCreateSerializer,
     OrderListSerializer,
+    FAQSerializer,
 )
 
 
 def _get_cart(user: TelegramUser) -> Cart:
     cart, _ = Cart.objects.get_or_create(user=user, defaults={})
     return cart
+
+
+class FAQListView(APIView):
+    """Публичный список FAQ для главной WebApp (без обязательной авторизации)."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request: Request):
+        qs = FAQ.objects.filter(is_active=True).order_by("order", "id")
+        return Response(FAQSerializer(qs, many=True).data)
 
 
 class CategoryListView(APIView):
@@ -223,6 +238,8 @@ class OrderCreateView(APIView):
                 price=item.product.price,
             )
         cart.items.all().delete()
+        oid = order.id
+        transaction.on_commit(lambda: notify_bot_admin_new_order(oid))
         return Response(
             {"id": order.id, "total": str(order.total), "status": order.status},
             status=status.HTTP_201_CREATED,

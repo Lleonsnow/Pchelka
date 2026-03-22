@@ -4,6 +4,7 @@ from rest_framework import serializers
 
 from apps.catalog.models import Category, Product, ProductImage
 from apps.cart.models import Cart, CartItem
+from apps.faq.models import FAQ
 from apps.orders.models import Order, OrderItem
 
 
@@ -104,3 +105,9 @@ class OrderListSerializer(serializers.ModelSerializer):
         fields = ["id", "status", "total", "created_at"]
 
     total = serializers.DecimalField(max_digits=12, decimal_places=2, coerce_to_string=True)
+
+
+class FAQSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FAQ
+        fields = ["id", "question", "answer", "order"]

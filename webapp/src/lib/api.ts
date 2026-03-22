@@ -119,6 +119,18 @@ export type CartResponse = {
   total: string;
 };
 
+export type FaqItem = {
+  id: number;
+  question: string;
+  answer: string;
+  order: number;
+};
+
+/** Публичный список FAQ (доступен без авторизации). */
+export async function getFaq(): Promise<FaqItem[]> {
+  return apiFetch<FaqItem[]>("/faq/");
+}
+
 export async function getCategories(parentId?: number): Promise<Category[]> {
   const q = parentId != null ? `?parent_id=${parentId}` : "";
   return apiFetch<Category[]>(`/catalog/categories/${q}`);

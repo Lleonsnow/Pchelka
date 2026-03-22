@@ -7,7 +7,13 @@ from pathlib import Path
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import BotCommand, MenuButtonWebApp, WebAppInfo
+from aiogram.types import (
+    BotCommand,
+    BotCommandScopeAllGroupChats,
+    BotCommandScopeAllPrivateChats,
+    MenuButtonWebApp,
+    WebAppInfo,
+)
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from bot.config import BotConfig
@@ -28,25 +34,41 @@ from bot.broadcast_sender import run_broadcast_worker
 _log_dir = Path(__file__).resolve().parent.parent / "logs"
 _log_dir.mkdir(parents=True, exist_ok=True)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
+_handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+try:
+    _handlers.append(
         logging.handlers.RotatingFileHandler(
             _log_dir / "bot.log",
             maxBytes=10 * 1024 * 1024,
             backupCount=5,
-        ),
-    ],
+        )
+    )
+except PermissionError:
+    # В volume-файле могут остаться root-права; не валим запуск бота из-за файла логов.
+    pass
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    handlers=_handlers,
 )
 logger = logging.getLogger(__name__)
 
-BOT_COMMANDS = [
+# Личные чаты: меню команд
+BOT_COMMANDS_PRIVATE = [
     BotCommand(command="start", description="Начать"),
     BotCommand(command="catalog", description="Каталог"),
     BotCommand(command="cart", description="Корзина"),
     BotCommand(command="help", description="Помощь"),
+]
+
+# Группы / супергруппы: при включённом Group Privacy бот получает только команды (и реплаи/упоминания),
+# обычный текст в группу боту не доставляется — см. https://core.telegram.org/bots/features#privacy-mode
+BOT_COMMANDS_GROUP = [
+    BotCommand(
+        command="bind_admin_chat",
+        description="Привязать этот чат для уведомлений админам",
+    ),
 ]
 
 
@@ -70,7 +92,8 @@ async def main() -> None:
     dp.include_router(admin_router.router)
     dp.include_router(faq_router.router)
 
-    await bot.set_my_commands(BOT_COMMANDS)
+    await bot.set_my_commands(BOT_COMMANDS_PRIVATE, scope=BotCommandScopeAllPrivateChats())
+    await bot.set_my_commands(BOT_COMMANDS_GROUP, scope=BotCommandScopeAllGroupChats())
 
     if config.webapp_url:
         await bot.set_chat_menu_button(

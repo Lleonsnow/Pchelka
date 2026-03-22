@@ -1,9 +1,15 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { setupBackButton, hideBackButton } from "@/lib/telegram";
+import {
+  setupBackButton,
+  hideBackButton,
+  setupMainButton,
+  hideMainButton,
+  getTelegramWebApp,
+} from "@/lib/telegram";
 import { getCart, createOrder } from "@/lib/api";
 
 const CHECKOUT_STORAGE_KEY = "tg-shop-checkout-last";
@@ -35,6 +41,8 @@ function saveCheckoutData(data: { full_name: string; address: string; phone: str
 
 export default function CheckoutPage() {
   const router = useRouter();
+  const submitRef = useRef<() => void>(() => {});
+  const [hasTelegramMainButton, setHasTelegramMainButton] = useState(false);
   const [total, setTotal] = useState<string>("0");
   const [itemsCount, setItemsCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -116,6 +124,27 @@ export default function CheckoutPage() {
         setSubmitting(false);
       });
   }, [form, itemsCount, submitting]);
+
+  useEffect(() => {
+    submitRef.current = handleSubmit;
+  }, [handleSubmit]);
+
+  useEffect(() => {
+    setupMainButton("Подтвердить заказ", () => submitRef.current());
+    setHasTelegramMainButton(!!getTelegramWebApp()?.MainButton);
+    return () => hideMainButton();
+  }, []);
+
+  useEffect(() => {
+    const mainButton = getTelegramWebApp()?.MainButton;
+    if (!mainButton) return;
+    if (loading || success || itemsCount === 0) {
+      mainButton.hide();
+      return;
+    }
+    mainButton.setText(submitting ? "Отправка..." : "Подтвердить заказ");
+    mainButton.show();
+  }, [loading, success, itemsCount, submitting]);
 
 
   if (loading) {
@@ -235,14 +264,16 @@ export default function CheckoutPage() {
           <span>Проверим данные и свяжемся для подтверждения.</span>
           <span>Итого: {total} ₽</span>
         </div>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="btn btn--primary btn--full"
-          style={{ marginTop: 18 }}
-        >
-          {submitting ? "Отправка…" : "Подтвердить заказ"}
-        </button>
+        {!hasTelegramMainButton && (
+          <button
+            type="submit"
+            disabled={submitting}
+            className="btn btn--primary btn--full"
+            style={{ marginTop: 18 }}
+          >
+            {submitting ? "Отправка…" : "Подтвердить заказ"}
+          </button>
+        )}
       </form>
     </div>
   );
