@@ -11,7 +11,7 @@ for d in ${NGINX_SERVER_NAME}; do
   DOMAIN_ARGS+=(-d "$d")
 done
 docker compose -f docker-compose.prod.yml stop nginx 2>/dev/null || true
-docker compose -f docker-compose.prod.yml run --rm -p 80:80 --profile certbot certbot certonly \
+docker compose -f docker-compose.prod.yml --profile certbot run --rm -p 80:80 certbot certonly \
   --standalone \
   --preferred-challenges http \
   "${DOMAIN_ARGS[@]}" \

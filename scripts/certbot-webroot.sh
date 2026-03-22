@@ -9,7 +9,7 @@ DOMAINS=()
 for d in ${NGINX_SERVER_NAME}; do
   DOMAINS+=(-d "$d")
 done
-docker compose -f docker-compose.prod.yml run --rm --profile certbot certbot certonly \
+docker compose -f docker-compose.prod.yml --profile certbot run --rm certbot certonly \
   --webroot -w /var/www/certbot \
   "${DOMAINS[@]}" \
   --email "${CERTBOT_EMAIL}" \
