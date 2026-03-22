@@ -2,6 +2,7 @@
 # Первый выпуск сертификата, пока в ./ssl ещё нет fullchain.pem.
 # Останавливает nginx (освобождает :80), поднимает certbot --standalone.
 # Перед запуском: set -a && source .env && set +a  (нужны NGINX_SERVER_NAME, CERTBOT_EMAIL)
+# NGINX_SERVER_NAME — только доменное имя; Let's Encrypt не выдаёт сертификат на один IP.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 : "${NGINX_SERVER_NAME:?Задайте NGINX_SERVER_NAME (один или несколько доменов через пробел)}"
