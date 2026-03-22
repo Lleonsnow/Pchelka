@@ -11,6 +11,27 @@ from bot.keyboards.start import REQUEST_CONTACT, get_main_menu
 
 router = Router(name="start")
 
+# Тексты /start: одно сообщение, без дубля с MenuButtonWebApp («Открыть магазин» у поля ввода).
+_WELCOME_NO_PHONE_WEBAPP = (
+    "Это <b>магазин в Telegram</b>: в мини-приложении — каталог, корзина и оформление заказа.\n\n"
+    "Чтобы курьер мог с вами связаться, <b>один раз</b> нажмите «Поделиться контактом» ниже — "
+    "номер сохраним в профиле.\n\n"
+    "Мини-приложение открывается <b>синей кнопкой «Открыть магазин»</b> слева от поля ввода сообщения."
+)
+_WELCOME_NO_PHONE_NO_WEBAPP = (
+    "Это <b>магазин в Telegram</b>. Чтобы оформлять заказы с доставкой, нажмите "
+    "«Поделиться контактом» ниже — номер нужен для связи с вами."
+)
+_WELCOME_HAS_PHONE = (
+    "{name}, с возвращением!\n\n"
+    "Каталог и корзина — в <b>мини-приложении</b> (кнопка «Открыть магазин» слева от поля ввода) "
+    "или через меню ниже."
+)
+_THANKS_CONTACT = (
+    "Спасибо, контакт сохранили.\n\n"
+    "Дальше — мини-приложение (кнопка «Открыть магазин» у поля ввода) или пункты меню ниже."
+)
+
 
 def _extract_start_payload(message: Message, command: CommandObject) -> str:
     """
@@ -53,36 +74,23 @@ async def cmd_start(
             )
         elif ok:
             await message.answer(
-                "Для заказов поделитесь контактом.",
+                "Чтобы оформить доставку, поделитесь контактом кнопкой ниже.",
                 reply_markup=REQUEST_CONTACT,
             )
         else:
             await message.answer("Товар не найден.")
         return
 
-    webapp_url = (config.webapp_url or "").strip()
-    webapp_kb = (
-        InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="Открыть магазин", web_app=WebAppInfo(url=webapp_url))],
-            ]
-        )
-        if webapp_url else None
-    )
-
     if user.phone:
+        name = user.first_name or "друг"
         await message.answer(
-            f"Привет, {user.first_name or 'друг'}! 👋\n\n"
-            "Нажми кнопку ниже или выбери действие в меню.",
-            reply_markup=webapp_kb or get_main_menu(),
+            _WELCOME_HAS_PHONE.format(name=name),
+            reply_markup=get_main_menu(),
         )
         return
-    await message.answer(
-        "Добро пожаловать! Нажми «Открыть магазин» или поделитесь контактом для доставки заказов.",
-        reply_markup=webapp_kb or REQUEST_CONTACT,
-    )
-    if webapp_kb:
-        await message.answer("Поделиться контактом:", reply_markup=REQUEST_CONTACT)
+
+    text = _WELCOME_NO_PHONE_WEBAPP if (config.webapp_url or "").strip() else _WELCOME_NO_PHONE_NO_WEBAPP
+    await message.answer(text, reply_markup=REQUEST_CONTACT)
 
 
 @router.message(lambda m: m.contact is not None)
@@ -98,21 +106,7 @@ async def handle_contact(
         return
     async with get_session(session_factory) as session:
         await update_user_phone(session, user.telegram_id, phone)
-    webapp_url = (config.webapp_url or "").strip()
-    webapp_kb = (
-        InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="Открыть магазин", web_app=WebAppInfo(url=webapp_url))],
-            ]
-        )
-        if webapp_url else None
-    )
-    await message.answer(
-        "Спасибо! Контакт сохранён. Нажми кнопку ниже или выбери действие в меню.",
-        reply_markup=webapp_kb or get_main_menu(),
-    )
-    if webapp_kb:
-        await message.answer("Меню:", reply_markup=get_main_menu())
+    await message.answer(_THANKS_CONTACT, reply_markup=get_main_menu())
 
 
 @router.message(F.text.in_({"📋 Мои заказы", "Мои заказы"}))
