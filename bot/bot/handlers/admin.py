@@ -2,8 +2,14 @@ import html
 import logging
 
 from aiogram import Router, F, Bot
-from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, ChatMemberUpdated
+from aiogram.filters import Command, CommandObject
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    ChatMemberUpdated,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 
 from bot.database import get_session
 from bot.repositories.bot_settings_repository import (
@@ -14,18 +20,25 @@ from bot.repositories.bot_settings_repository import (
 from bot.repositories.order_repository import (
     get_order_for_admin,
     get_orders_list,
+    get_active_orders_list,
     set_order_status,
     get_order_user_telegram_id,
     ORDER_STATUS_LABELS,
 )
 from bot.filters.is_admin import IsAdminFilter
 from bot.keyboards.admin import admin_order_keyboard
+from bot.repositories import broadcast_repository as broadcast_repo
+from bot.menu_commands import (
+    GROUP_HELP_BASIC,
+    build_admin_chat_help_html,
+    refresh_admin_chat_commands,
+)
 
 router = Router(name="admin")
 logger = logging.getLogger(__name__)
 
 
-async def _apply_bind_admin_chat(message: Message, session_factory) -> None:
+async def _apply_bind_admin_chat(message: Message, session_factory, bot: Bot) -> None:
     """Сохранить chat.id в admin_chat_id (если пусто)."""
     chat_id = message.chat.id if message.chat else None
     if not chat_id:
@@ -50,6 +63,10 @@ async def _apply_bind_admin_chat(message: Message, session_factory) -> None:
             )
         else:
             await message.reply("⚠️ Не удалось сохранить admin_chat_id (проверьте BotSettings).")
+
+    effective = current.admin_chat_id if current else None
+    if effective == chat_id:
+        await refresh_admin_chat_commands(bot, session_factory, admin_chat_id=chat_id)
 
 
 def _format_order_for_admin(order: dict) -> str:
@@ -135,21 +152,49 @@ async def bind_admin_chat_private(message: Message) -> None:
     Command("bind_admin_chat"),
     lambda m: m.chat is not None and m.chat.type in {"group", "supergroup"},
 )
-async def bind_admin_chat_group(message: Message, session_factory) -> None:
+async def bind_admin_chat_group(message: Message, session_factory, bot: Bot) -> None:
     """
     Привязка в группе/супергруппе. При нескольких ботах: /bind_admin_chat@bot
     """
-    await _apply_bind_admin_chat(message, session_factory)
+    await _apply_bind_admin_chat(message, session_factory, bot)
 
 
 @router.channel_post(Command("bind_admin_chat"))
-async def bind_admin_chat_channel_post(message: Message, session_factory) -> None:
+async def bind_admin_chat_channel_post(message: Message, session_factory, bot: Bot) -> None:
     """В канале посты приходят как channel_post, не как message."""
-    await _apply_bind_admin_chat(message, session_factory)
+    await _apply_bind_admin_chat(message, session_factory, bot)
+
+
+@router.message(
+    Command("help"),
+    F.chat.type.in_({"group", "supergroup"}),
+    IsAdminFilter(),
+)
+async def cmd_help_group_as_admin(message: Message) -> None:
+    """Справка с полным списком админ-команд (привязанный админ-чат или whitelist id)."""
+    await message.answer(build_admin_chat_help_html())
+
+
+@router.message(Command("help"), F.chat.type.in_({"group", "supergroup"}))
+async def cmd_help_group_basic(message: Message) -> None:
+    """Справка для прочих групп — только привязка и куда смотреть полный список."""
+    await message.answer(GROUP_HELP_BASIC)
+
+
+@router.channel_post(Command("help"), IsAdminFilter())
+async def cmd_help_channel_as_admin(message: Message) -> None:
+    await message.answer(build_admin_chat_help_html())
+
+
+@router.channel_post(Command("help"))
+async def cmd_help_channel_basic(message: Message) -> None:
+    await message.answer(GROUP_HELP_BASIC)
 
 
 @router.my_chat_member()
-async def capture_admin_chat_on_member_update(event: ChatMemberUpdated, session_factory) -> None:
+async def capture_admin_chat_on_member_update(
+    event: ChatMemberUpdated, session_factory, bot: Bot
+) -> None:
     """
     Резервный автозахват admin_chat_id на событии статуса бота в группе.
     Срабатывает даже если privacy mode запрещает чтение обычных сообщений.
@@ -167,11 +212,14 @@ async def capture_admin_chat_on_member_update(event: ChatMemberUpdated, session_
     )
     async with get_session(session_factory) as session:
         saved = await set_admin_chat_id_if_empty(session, chat.id)
+        current = await get_bot_settings(session)
     logger.info(
         "Attempted admin_chat_id save from my_chat_member: chat_id=%s saved=%s",
         chat.id,
         saved,
     )
+    if current and current.admin_chat_id == chat.id:
+        await refresh_admin_chat_commands(bot, session_factory, admin_chat_id=chat.id)
 
 
 async def notify_admin_new_order(
@@ -220,7 +268,7 @@ async def notify_user_order_status(
         pass
 
 
-@router.message(F.text == "/orders", IsAdminFilter())
+@router.message(Command("orders"), IsAdminFilter())
 async def cmd_orders(message: Message, session_factory) -> None:
     """Список последних заказов (только для админов)."""
     async with get_session(session_factory) as session:
@@ -231,8 +279,156 @@ async def cmd_orders(message: Message, session_factory) -> None:
     lines = ["📋 <b>Последние заказы</b>\n"]
     for o in orders:
         label = ORDER_STATUS_LABELS.get(o["status"], o["status"])
-        lines.append(f"#{o['id']} — {o['full_name']} — {o['total']} ₽ — {label}")
+        fn = html.escape(str(o.get("full_name") or ""))
+        lines.append(f"#{o['id']} — {fn} — {o['total']} ₽ — {html.escape(str(label))}")
     await message.answer("\n".join(lines))
+
+
+@router.message(Command("active_orders"), IsAdminFilter())
+async def cmd_active_orders(message: Message, session_factory) -> None:
+    """Активные заказы: всё кроме «Доставлен» и «Отменён»."""
+    async with get_session(session_factory) as session:
+        orders = await get_active_orders_list(session, limit=30)
+    if not orders:
+        await message.answer("Активных заказов нет.")
+        return
+    lines = ["📬 <b>Активные заказы</b> <i>(не доставлены и не отменены)</i>\n"]
+    for o in orders:
+        label = ORDER_STATUS_LABELS.get(o["status"], o["status"])
+        fn = html.escape(str(o.get("full_name") or ""))
+        lines.append(f"#{o['id']} — {fn} — {o['total']} ₽ — {html.escape(str(label))}")
+    text = "\n".join(lines)
+    if len(text) > 4000:
+        text = text[:3990] + "\n…"
+    await message.answer(text)
+
+
+_BROADCAST_STATUS_RU = {
+    "draft": "черновик",
+    "ready": "в очереди",
+    "sent": "отправлено",
+}
+
+
+@router.message(Command("broadcasts"), IsAdminFilter())
+async def cmd_broadcasts(message: Message, session_factory) -> None:
+    """Список шаблонов и кнопки «Отправить»."""
+    async with get_session(session_factory) as session:
+        templates = await broadcast_repo.list_broadcast_templates(session, limit=20)
+    if not templates:
+        await message.answer(
+            "Шаблонов нет. Создайте в админке Django: раздел «Шаблоны рассылок»."
+        )
+        return
+    lines = ["📢 <b>Шаблоны рассылок</b>\n<i>Кнопка — поставить в очередь (бот отправит за несколько секунд).</i>\n"]
+    for t in templates:
+        lines.append(f"<b>#{t.id}</b> {html.escape(t.name)}")
+        prev = (t.text or "").replace("\n", " ").strip()
+        if len(prev) > 90:
+            prev = prev[:87] + "…"
+        if prev:
+            lines.append(html.escape(prev))
+        lines.append("")
+    text = "\n".join(lines).strip()
+    if len(text) > 3800:
+        text = text[:3790] + "\n…"
+    kb_rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text=f"📤 {(t.name[:30] + '…') if len(t.name) > 30 else t.name}",
+                callback_data=f"bcs_{t.id}",
+            )
+        ]
+        for t in templates
+    ]
+    await message.answer(
+        text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows),
+    )
+
+
+@router.message(Command("broadcast_log"), IsAdminFilter())
+async def cmd_broadcast_log(message: Message, session_factory) -> None:
+    """История рассылок (записи в БД)."""
+    async with get_session(session_factory) as session:
+        rows = await broadcast_repo.list_broadcast_history(session, limit=15)
+    if not rows:
+        await message.answer("Записей о рассылках пока нет.")
+        return
+    lines = ["📜 <b>Последние рассылки</b>\n"]
+    for h in rows:
+        st = _BROADCAST_STATUS_RU.get(h.status, h.status)
+        preview = html.escape((h.text_preview or "").replace("\n", " "))
+        lines.append(
+            f"#{h.id} — <i>{html.escape(st)}</i> · ✓{h.delivered_count} ✗{h.error_count}\n{preview}\n"
+        )
+    out = "\n".join(lines).strip()
+    if len(out) > 4000:
+        out = out[:3990] + "\n…"
+    await message.answer(out)
+
+
+@router.message(Command("broadcast_send"), IsAdminFilter())
+async def cmd_broadcast_send(
+    message: Message,
+    session_factory,
+    command: CommandObject,
+) -> None:
+    """Отправка по номеру шаблона: /broadcast_send 2"""
+    arg = (command.args or "").strip().split(maxsplit=1)[0]
+    if not arg.isdigit():
+        await message.answer(
+            "Укажите номер шаблона из списка <code>/broadcasts</code>:\n"
+            "<code>/broadcast_send 2</code>"
+        )
+        return
+    tid = int(arg)
+    async with get_session(session_factory) as session:
+        bid = await broadcast_repo.enqueue_broadcast_from_template(session, tid)
+    if bid is None:
+        await message.answer(f"Шаблон <b>#{tid}</b> не найден или отключён.")
+        return
+    await message.answer(
+        f"✅ Рассылка <b>#{bid}</b> поставлена в очередь. Бот отправит подписчикам в течение нескольких секунд."
+    )
+
+
+# В канале команды приходят как channel_post, не как message.
+for _cmd, _handler in (
+    ("orders", cmd_orders),
+    ("active_orders", cmd_active_orders),
+    ("broadcasts", cmd_broadcasts),
+    ("broadcast_log", cmd_broadcast_log),
+    ("broadcast_send", cmd_broadcast_send),
+):
+    router.channel_post.register(_handler, Command(_cmd), IsAdminFilter())
+
+
+@router.callback_query(F.data.startswith("bcs_"), IsAdminFilter())
+async def broadcast_send_callback(
+    callback: CallbackQuery,
+    session_factory,
+) -> None:
+    try:
+        tid = int((callback.data or "").split("_", 1)[1])
+    except (IndexError, ValueError):
+        await callback.answer("Неверные данные.", show_alert=True)
+        return
+    async with get_session(session_factory) as session:
+        bid = await broadcast_repo.enqueue_broadcast_from_template(session, tid)
+    if bid is None:
+        await callback.answer("Шаблон не найден или отключён.", show_alert=True)
+        return
+    await callback.answer(f"В очереди: рассылка #{bid}")
+    if callback.message:
+        await callback.message.reply(
+            f"✅ Рассылка <b>#{bid}</b> поставлена в очередь (шаблон #{tid})."
+        )
+
+
+@router.callback_query(F.data.startswith("bcs_"))
+async def broadcast_send_callback_denied(callback: CallbackQuery) -> None:
+    await callback.answer("Нет доступа.", show_alert=True)
 
 
 @router.callback_query(F.data.startswith("adm_o_"), IsAdminFilter())

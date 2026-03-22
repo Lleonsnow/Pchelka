@@ -173,3 +173,23 @@ async def get_orders_list(
             {"limit": limit},
         )
     return [dict(row) for row in result.mappings()]
+
+
+async def get_active_orders_list(session: AsyncSession, limit: int = 30) -> list[dict]:
+    """Заказы не в финальных статусах (доставлен / отменён)."""
+    result = await session.execute(
+        text("""
+            SELECT o.id, o.status, o.full_name, o.total, o.created_at, u.telegram_id
+            FROM orders_order o
+            JOIN users_telegramuser u ON u.id = o.user_id
+            WHERE o.status NOT IN (:delivered, :cancelled)
+            ORDER BY o.created_at DESC
+            LIMIT :limit
+        """),
+        {
+            "limit": limit,
+            "delivered": ORDER_STATUS_DELIVERED,
+            "cancelled": ORDER_STATUS_CANCELLED,
+        },
+    )
+    return [dict(row) for row in result.mappings()]

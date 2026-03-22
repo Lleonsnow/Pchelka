@@ -37,7 +37,7 @@ class BotConfig(BaseSettings):
 
     @property
     def media_base_url(self) -> str:
-        return self.MEDIA_BASE_URL.rstrip("/")
+        return (self.MEDIA_BASE_URL or "").strip().rstrip("/")
 
     @property
     def notify_port(self) -> int:
@@ -45,4 +45,4 @@ class BotConfig(BaseSettings):
 
     @property
     def webapp_url(self) -> str:
-        return (self.TELEGRAM_WEBAPP_HOST or "").rstrip("/")
+        return (self.TELEGRAM_WEBAPP_HOST or "").strip().rstrip("/")

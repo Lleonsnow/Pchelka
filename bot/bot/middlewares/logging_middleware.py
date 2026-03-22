@@ -37,6 +37,8 @@ def _get_update_type(update: Update) -> str:
 def _get_telegram_id(update: Update) -> int | None:
     if update.message and update.message.from_user:
         return update.message.from_user.id
+    if update.channel_post and update.channel_post.from_user:
+        return update.channel_post.from_user.id
     if update.callback_query and update.callback_query.from_user:
         return update.callback_query.from_user.id
     if update.inline_query and update.inline_query.from_user:
@@ -68,6 +70,10 @@ class LoggingMiddleware(BaseMiddleware):
                 chat_id = event.message.chat.id
                 chat_type = event.message.chat.type
                 text_preview = (event.message.text or event.message.caption or "")[:120]
+            elif event.channel_post and event.channel_post.chat:
+                chat_id = event.channel_post.chat.id
+                chat_type = event.channel_post.chat.type
+                text_preview = (event.channel_post.text or event.channel_post.caption or "")[:120]
             elif event.my_chat_member and event.my_chat_member.chat:
                 chat_id = event.my_chat_member.chat.id
                 chat_type = event.my_chat_member.chat.type

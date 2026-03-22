@@ -29,16 +29,28 @@ class IsAdminFilter(BaseFilter):
                 user_id = event.from_user.id
             if event.message and event.message.chat:
                 chat_id = event.message.chat.id
-        if user_id is None:
-            return False
         session_factory = kwargs.get("session_factory")
         if not session_factory:
             return False
         settings = await get_bot_settings_cached(session_factory, get_session)
         if not settings:
             return False
-        if settings.admin_telegram_ids:
-            return user_id in settings.admin_telegram_ids
-        if settings.admin_chat_id is not None and chat_id == settings.admin_chat_id:
+
+        if user_id is not None:
+            if settings.admin_telegram_ids:
+                return user_id in settings.admin_telegram_ids
+            if settings.admin_chat_id is not None and chat_id == settings.admin_chat_id:
+                return True
+            return False
+
+        # Пост в канале без from_user (типично для channel_post) — проверить личность нельзя.
+        if (
+            isinstance(event, Message)
+            and event.chat
+            and event.chat.type == "channel"
+            and settings.admin_chat_id is not None
+            and chat_id == settings.admin_chat_id
+            and not settings.admin_telegram_ids
+        ):
             return True
         return False

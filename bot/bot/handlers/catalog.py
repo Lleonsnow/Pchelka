@@ -25,6 +25,7 @@ def _webapp_base_url(config: BotConfig) -> str:
 
 
 def _product_url(config: BotConfig, path: str) -> str:
+    path = (path or "").strip().replace("\n", "").replace("\r", "")
     if not path:
         return ""
     base = _media_base_url(config)
