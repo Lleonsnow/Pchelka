@@ -14,6 +14,7 @@ from bot.repositories.cart_repository import (
 from bot.keyboards.cart import build_cart_keyboard
 from bot.keyboards.catalog import CartCallbackData
 from bot.fsm.order import OrderFSM
+from bot.utils.callback_edit import edit_callback_text
 
 router = Router(name="cart")
 
@@ -35,7 +36,7 @@ async def _send_cart(callback_or_message: CallbackQuery | Message, user: UserDat
     text = _format_cart_message(items, total)
     keyboard = build_cart_keyboard(items)
     if isinstance(callback_or_message, CallbackQuery):
-        await callback_or_message.message.edit_text(text, reply_markup=keyboard)
+        await edit_callback_text(callback_or_message, text, reply_markup=keyboard)
     else:
         await callback_or_message.answer(text, reply_markup=keyboard)
 
@@ -88,7 +89,7 @@ async def cart_clear(
 ) -> None:
     async with get_session(session_factory) as session:
         await clear_cart(session, user.id)
-    await callback.message.edit_text("🛒 Корзина пуста. Добавьте товары из каталога.")
+    await edit_callback_text(callback, "🛒 Корзина пуста. Добавьте товары из каталога.")
     await callback.answer("Корзина очищена")
 
 
@@ -106,7 +107,8 @@ async def cart_checkout(
         return
     await state.set_state(OrderFSM.fio)
     await state.update_data(order_message_id=callback.message.message_id)
-    await callback.message.edit_text(
-        "Оформление заказа. Введите <b>ФИО</b> (например: Иванов Иван Иванович):"
+    await edit_callback_text(
+        callback,
+        "Оформление заказа. Введите <b>ФИО</b> (например: Иванов Иван Иванович):",
     )
     await callback.answer()

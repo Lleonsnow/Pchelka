@@ -33,6 +33,7 @@ from bot.menu_commands import (
     build_admin_chat_help_html,
     refresh_admin_chat_commands,
 )
+from bot.utils.callback_edit import edit_callback_text
 
 router = Router(name="admin")
 logger = logging.getLogger(__name__)
@@ -473,12 +474,13 @@ async def admin_order_status_cb(
     text = _format_order_for_admin(order_data)
     text += f"\n\n<b>✅ Статус обновлён:</b> {html.escape(label)}"
     try:
-        await callback.message.edit_text(
+        await edit_callback_text(
+            callback,
             text,
             reply_markup=admin_order_keyboard(order_id, new_status),
         )
     except Exception:
-        logger.exception("admin_order_status: edit_message failed order_id=%s", order_id)
+        logger.exception("admin_order_status: edit_or_send failed order_id=%s", order_id)
         await callback.answer("Статус сохранён, но не удалось обновить сообщение.", show_alert=True)
         return
     await callback.answer(f"Статус: {label}")
