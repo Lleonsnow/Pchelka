@@ -12,6 +12,7 @@ from bot.repositories.order_repository import (
 )
 from bot.fsm.order import OrderFSM
 from bot.keyboards.start import get_main_menu
+from bot.utils.callback_edit import edit_callback_text
 
 router = Router(name="order")
 
@@ -83,7 +84,7 @@ async def order_confirm_cb(
         order_id = await create_order_from_cart(session, user.id, fio, address, phone)
     await state.clear()
     if not order_id:
-        await callback.message.edit_text("Корзина пуста. Заказ не создан.")
+        await edit_callback_text(callback, "Корзина пуста. Заказ не создан.")
         await callback.answer()
         return
     # Уведомление в админ-чат
@@ -105,7 +106,8 @@ async def order_confirm_cb(
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Я оплатил(а)", callback_data=f"order_paid_{order_id}")],
     ])
-    await callback.message.edit_text(
+    await edit_callback_text(
+        callback,
         f"Заказ <b>#{order_id}</b> создан. Статус: ожидает оплаты.\n\n"
         "После оплаты нажмите кнопку ниже.",
         reply_markup=keyboard,
@@ -116,7 +118,7 @@ async def order_confirm_cb(
 @router.callback_query(OrderFSM.confirm, F.data == "order_cancel")
 async def order_cancel_cb(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
-    await callback.message.edit_text("Оформление заказа отменено.")
+    await edit_callback_text(callback, "Оформление заказа отменено.")
     await callback.answer()
 
 
@@ -134,7 +136,7 @@ async def order_paid_cb(
     async with get_session(session_factory) as session:
         ok = await set_order_status(session, order_id, ORDER_STATUS_PAID)
     if ok:
-        await callback.message.edit_text(f"Заказ #{order_id} отмечен как оплачен. Спасибо!")
+        await edit_callback_text(callback, f"Заказ #{order_id} отмечен как оплачен. Спасибо!")
     else:
         await callback.answer("Заказ не найден.", show_alert=True)
         return

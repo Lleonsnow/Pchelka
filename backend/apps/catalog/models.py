@@ -18,6 +18,12 @@ class Category(models.Model):
         verbose_name = "Категория"
         verbose_name_plural = "Категории"
         ordering = ["order", "name"]
+        indexes = [
+            models.Index(
+                fields=["parent", "order", "name"],
+                name="catalog_cat_parent_ord_nm",
+            ),
+        ]
 
     def __str__(self):
         return self.name
@@ -43,6 +49,12 @@ class Product(models.Model):
         verbose_name_plural = "Товары"
         ordering = ["-created_at"]
         unique_together = [("category", "slug")]
+        indexes = [
+            models.Index(
+                fields=["is_active", "category", "-created_at"],
+                name="catalog_prod_act_cat_crt",
+            ),
+        ]
 
     def __str__(self):
         return self.name
@@ -62,3 +74,9 @@ class ProductImage(models.Model):
         verbose_name = "Фото товара"
         verbose_name_plural = "Фото товаров"
         ordering = ["order"]
+        indexes = [
+            models.Index(
+                fields=["product", "order"],
+                name="catalog_pimg_prod_ord",
+            ),
+        ]

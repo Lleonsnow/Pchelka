@@ -11,6 +11,7 @@ from bot.keyboards.catalog import (
     build_catalog_keyboard,
     product_card_keyboard,
 )
+from bot.utils.callback_edit import edit_callback_text
 
 router = Router(name="catalog")
 PER_PAGE = repo.PER_PAGE
@@ -60,26 +61,50 @@ async def _send_product_card(
         if urls:
             try:
                 if len(urls) == 1:
-                    if edit and isinstance(callback_or_message, CallbackQuery) and callback_or_message.message:
-                        await callback_or_message.message.delete()
-                    msg_target = callback_or_message.message if isinstance(callback_or_message, CallbackQuery) else callback_or_message
-                    await msg_target.answer_photo(
-                        photo=urls[0],
-                        caption=text,
+                    if isinstance(callback_or_message, CallbackQuery):
+                        cq = callback_or_message
+                        await cq.bot.send_photo(
+                            chat_id=cq.message.chat.id,
+                            photo=urls[0],
+                            caption=text,
+                            reply_markup=keyboard,
+                        )
+                        if edit and cq.message:
+                            try:
+                                await cq.message.delete()
+                            except TelegramBadRequest:
+                                pass
+                    else:
+                        await callback_or_message.answer_photo(
+                            photo=urls[0],
+                            caption=text,
+                            reply_markup=keyboard,
+                        )
+                    return
+                media = [InputMediaPhoto(media=url) for url in urls]
+                media[0].caption = text
+                if isinstance(callback_or_message, CallbackQuery):
+                    cq = callback_or_message
+                    await cq.bot.send_media_group(chat_id=cq.message.chat.id, media=media)
+                    await cq.bot.send_message(
+                        chat_id=cq.message.chat.id,
+                        text="🛒 Добавить в корзину?",
                         reply_markup=keyboard,
                     )
-                    return
+                    if edit and cq.message:
+                        try:
+                            await cq.message.delete()
+                        except TelegramBadRequest:
+                            pass
                 else:
-                    media = [InputMediaPhoto(media=url) for url in urls]
-                    media[0].caption = text
-                    msg_target = callback_or_message.message if isinstance(callback_or_message, CallbackQuery) else callback_or_message
+                    msg_target = callback_or_message
                     await msg_target.answer_media_group(media)
                     await msg_target.answer("🛒 Добавить в корзину?", reply_markup=keyboard)
-                    return
+                return
             except TelegramBadRequest:
                 pass
-    if edit and isinstance(callback_or_message, CallbackQuery) and callback_or_message.message:
-        await callback_or_message.message.edit_text(text, reply_markup=keyboard)
+    if edit and isinstance(callback_or_message, CallbackQuery):
+        await edit_callback_text(callback_or_message, text, reply_markup=keyboard)
     else:
         target = callback_or_message.message if isinstance(callback_or_message, CallbackQuery) else callback_or_message
         await target.answer(text, reply_markup=keyboard)
@@ -123,7 +148,7 @@ async def catalog_cb_root(callback: CallbackQuery, session_factory, config: BotC
         is_products_view=False,
         **_tg_link_kw(config),
     )
-    await callback.message.edit_text("🍯 Выберите категорию:", reply_markup=keyboard)
+    await edit_callback_text(callback, "🍯 Выберите категорию:", reply_markup=keyboard)
     await callback.answer()
 
 
@@ -155,7 +180,7 @@ async def catalog_cb_open(callback: CallbackQuery, callback_data: CatalogCallbac
             is_products_view=False,
             **_tg_link_kw(config),
         )
-        await callback.message.edit_text("🍯 Выберите категорию:", reply_markup=keyboard)
+        await edit_callback_text(callback, "🍯 Выберите категорию:", reply_markup=keyboard)
     elif products_count > 0:
         async with get_session(session_factory) as session:
             products = await repo.get_products_in_category(session, cat_id, page=0, per_page=PER_PAGE)
@@ -173,7 +198,7 @@ async def catalog_cb_open(callback: CallbackQuery, callback_data: CatalogCallbac
             product_buttons=product_buttons,
             **_tg_link_kw(config),
         )
-        await callback.message.edit_text("\n".join(lines), reply_markup=keyboard)
+        await edit_callback_text(callback, "\n".join(lines), reply_markup=keyboard)
     else:
         await callback.answer("Здесь пока нет товаров.")
         return
@@ -206,7 +231,7 @@ async def catalog_cb_products(callback: CallbackQuery, callback_data: CatalogCal
         product_buttons=product_buttons,
         **_tg_link_kw(config),
     )
-    await callback.message.edit_text("\n".join(lines), reply_markup=keyboard)
+    await edit_callback_text(callback, "\n".join(lines), reply_markup=keyboard)
     await callback.answer()
 
 
@@ -238,7 +263,7 @@ async def catalog_cb_back(callback: CallbackQuery, callback_data: CatalogCallbac
             is_products_view=False,
             **_tg_link_kw(config),
         )
-        await callback.message.edit_text("🍯 Выберите категорию:", reply_markup=keyboard)
+        await edit_callback_text(callback, "🍯 Выберите категорию:", reply_markup=keyboard)
     else:
         async with get_session(session_factory) as session:
             cat = await repo.get_category_by_id(session, parent_id)
@@ -259,7 +284,7 @@ async def catalog_cb_back(callback: CallbackQuery, callback_data: CatalogCallbac
                 is_products_view=False,
                 **_tg_link_kw(config),
             )
-            await callback.message.edit_text("🍯 Выберите категорию:", reply_markup=keyboard)
+            await edit_callback_text(callback, "🍯 Выберите категорию:", reply_markup=keyboard)
         elif products_count > 0:
             async with get_session(session_factory) as session:
                 products = await repo.get_products_in_category(session, parent_id, page=0, per_page=PER_PAGE)
@@ -277,7 +302,7 @@ async def catalog_cb_back(callback: CallbackQuery, callback_data: CatalogCallbac
                 product_buttons=product_buttons,
                 **_tg_link_kw(config),
             )
-            await callback.message.edit_text("\n".join(lines), reply_markup=keyboard)
+            await edit_callback_text(callback, "\n".join(lines), reply_markup=keyboard)
         else:
             await callback.answer("Пусто.")
     await callback.answer()

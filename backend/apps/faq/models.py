@@ -12,6 +12,12 @@ class FAQ(models.Model):
         verbose_name = "Вопрос FAQ"
         verbose_name_plural = "FAQ"
         ordering = ["order", "id"]
+        indexes = [
+            models.Index(
+                fields=["is_active", "order", "id"],
+                name="faq_faq_active_ord_id",
+            ),
+        ]
 
     def __str__(self):
         return self.question[:80]

@@ -16,6 +16,18 @@ from apps.orders.models import Order, OrderItem
 from apps.orders.signals import notify_bot_admin_new_order
 from apps.users.models import TelegramUser
 
+from .cache import (
+    CONFIG_CACHE_TTL,
+    PUBLIC_CACHE_TTL,
+    WEBAPP_CONFIG_CACHE_KEY,
+    cache_get_json,
+    cache_set_json,
+    key_categories,
+    key_faq,
+    key_product_detail,
+    key_products_list,
+    public_cache_version,
+)
 from .serializers import (
     CategorySerializer,
     ProductListSerializer,
@@ -27,6 +39,11 @@ from .serializers import (
     OrderListSerializer,
     FAQSerializer,
 )
+
+
+def _with_public_cache_control(response: Response, max_age: int = 60) -> Response:
+    response["Cache-Control"] = f"public, max-age={max_age}"
+    return response
 
 
 def _get_cart(user: TelegramUser) -> Cart:
@@ -56,14 +73,16 @@ class WebAppConfigView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request: Request):
-        u = (getattr(settings, "TELEGRAM_BOT_USERNAME", "") or "").strip().lstrip("@")
-        short = (getattr(settings, "TELEGRAM_MINIAPP_SHORT_NAME", "") or "").strip()
-        return Response(
-            {
+        data = cache_get_json(WEBAPP_CONFIG_CACHE_KEY)
+        if data is None:
+            u = (getattr(settings, "TELEGRAM_BOT_USERNAME", "") or "").strip().lstrip("@")
+            short = (getattr(settings, "TELEGRAM_MINIAPP_SHORT_NAME", "") or "").strip()
+            data = {
                 "telegram_bot_username": u,
                 "miniapp_short_name": short,
             }
-        )
+            cache_set_json(WEBAPP_CONFIG_CACHE_KEY, data, CONFIG_CACHE_TTL)
+        return _with_public_cache_control(Response(data), max_age=120)
 
 
 class MeView(APIView):
@@ -88,49 +107,68 @@ class FAQListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request: Request):
-        qs = FAQ.objects.filter(is_active=True).order_by("order", "id")
-        return Response(FAQSerializer(qs, many=True).data)
+        ck = key_faq(public_cache_version())
+        data = cache_get_json(ck)
+        if data is None:
+            qs = FAQ.objects.filter(is_active=True).order_by("order", "id")
+            data = FAQSerializer(qs, many=True).data
+            cache_set_json(ck, data, PUBLIC_CACHE_TTL)
+        return _with_public_cache_control(Response(data))
 
 
 class CategoryListView(APIView):
     """Список корневых категорий или дочерних по query-параметру parent_id."""
 
     def get(self, request: Request):
-        parent_id = request.query_params.get("parent_id")
-        if parent_id is None or parent_id == "":
+        parent_raw = (request.query_params.get("parent_id") or "").strip()
+        if not parent_raw:
+            parent_key = "root"
             qs = Category.objects.filter(parent__isnull=True)
         else:
             try:
-                qs = Category.objects.filter(parent_id=int(parent_id))
+                pid = int(parent_raw)
             except ValueError:
-                qs = Category.objects.none()
-        qs = qs.annotate(children_count=Count("children")).order_by("order", "name")
-        serializer = CategorySerializer(qs, many=True)
-        return Response(serializer.data)
+                return _with_public_cache_control(Response([]))
+            parent_key = str(pid)
+            qs = Category.objects.filter(parent_id=pid)
+        ck = key_categories(parent_key, public_cache_version())
+        data = cache_get_json(ck)
+        if data is None:
+            qs = qs.annotate(children_count=Count("children")).order_by("order", "name")
+            data = CategorySerializer(qs, many=True).data
+            cache_set_json(ck, data, PUBLIC_CACHE_TTL)
+        return _with_public_cache_control(Response(data))
 
 
 class ProductListView(APIView):
     """Товары по категории или поиск по имени/описанию."""
 
     def get(self, request: Request):
-        category_id = request.query_params.get("category_id")
+        category_id = (request.query_params.get("category_id") or "").strip()
         search = (request.query_params.get("search") or "").strip()
-        qs = (
-            Product.objects.filter(is_active=True)
-            .select_related("category")
-            .prefetch_related(
-                Prefetch("images", queryset=ProductImage.objects.order_by("order"))
+        host = request.get_host()
+        ck = key_products_list(host, category_id, search, public_cache_version())
+        data = cache_get_json(ck)
+        if data is None:
+            qs = (
+                Product.objects.filter(is_active=True)
+                .select_related("category")
+                .prefetch_related(
+                    Prefetch("images", queryset=ProductImage.objects.order_by("order"))
+                )
             )
-        )
-        if category_id:
-            qs = qs.filter(category_id=category_id)
-        if search:
-            qs = qs.filter(
-                Q(name__icontains=search) | Q(description__icontains=search)
-            )
-        qs = qs.order_by("-created_at")[:100]
-        serializer = ProductListSerializer(qs, many=True, context={"request": request})
-        return Response(serializer.data)
+            if category_id:
+                qs = qs.filter(category_id=category_id)
+            if search:
+                qs = qs.filter(
+                    Q(name__icontains=search) | Q(description__icontains=search)
+                )
+            qs = qs.order_by("-created_at")[:100]
+            data = ProductListSerializer(
+                qs, many=True, context={"request": request}
+            ).data
+            cache_set_json(ck, data, PUBLIC_CACHE_TTL)
+        return _with_public_cache_control(Response(data))
 
 
 class ProductDetailView(APIView):
@@ -139,18 +177,25 @@ class ProductDetailView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request: Request, pk: int):
-        try:
-            product = (
-                Product.objects.filter(is_active=True)
-                .prefetch_related(
-                    Prefetch("images", queryset=ProductImage.objects.order_by("order"))
+        host = request.get_host()
+        ck = key_product_detail(host, pk, public_cache_version())
+        data = cache_get_json(ck)
+        if data is None:
+            try:
+                product = (
+                    Product.objects.filter(is_active=True)
+                    .prefetch_related(
+                        Prefetch("images", queryset=ProductImage.objects.order_by("order"))
+                    )
+                    .get(pk=pk)
                 )
-                .get(pk=pk)
-            )
-        except Product.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        serializer = ProductDetailSerializer(product, context={"request": request})
-        return Response(serializer.data)
+            except Product.DoesNotExist:
+                return Response(status=status.HTTP_404_NOT_FOUND)
+            data = ProductDetailSerializer(
+                product, context={"request": request}
+            ).data
+            cache_set_json(ck, data, PUBLIC_CACHE_TTL)
+        return _with_public_cache_control(Response(data))
 
 
 class CartView(APIView):

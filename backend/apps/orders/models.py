@@ -39,6 +39,12 @@ class Order(models.Model):
         verbose_name = "Заказ"
         verbose_name_plural = "Заказы"
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["user", "-created_at"],
+                name="orders_order_user_crt",
+            ),
+        ]
 
     def __str__(self):
         return f"#{self.id} {self.user.telegram_id} ({self.status})"

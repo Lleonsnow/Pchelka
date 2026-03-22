@@ -63,11 +63,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "apps.catalog",
+    "apps.catalog.apps.CatalogConfig",
     "apps.users",
     "apps.cart",
     "apps.orders.apps.OrdersConfig",
-    "apps.faq",
+    "apps.faq.apps.FaqConfig",
     "apps.broadcasts",
     "apps.bot_settings",
     "rest_framework",
@@ -112,6 +112,17 @@ DATABASES = {
         "PASSWORD": _env.POSTGRES_PASSWORD,
         "HOST": _env.POSTGRES_HOST,
         "PORT": _env.POSTGRES_PORT,
+        # Переиспользование соединений к БД снижает задержку между запросами (особенно в Docker).
+        "CONN_MAX_AGE": 60 if not DEBUG else 0,
+    }
+}
+
+# Кеш ответов публичного API (см. apps.api.cache). LocMem — отдельная память на каждый процесс gunicorn;
+# при нескольких воркерах можно заменить на django-redis (один общий backend).
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "tgshop",
     }
 }
 
