@@ -1,16 +1,41 @@
 {% load static %}
-{# Ранний фон админки Pchelka: тёмная «сота» #0a0a0a; светлая тема — по prefers-color-scheme #}
+{# Ранний фон: html + body + каркас, чтобы не мигал белый фон/шапка до загрузки custom_admin.css #}
 <style id="admin-critical-theme">
-  html { color-scheme: dark light; }
+  html {
+    color-scheme: dark light;
+    background-color: #0a0a0a !important;
+  }
   body {
     background-color: #0a0a0a !important;
     color: #f5f5f5 !important;
   }
+  #container {
+    background-color: transparent !important;
+  }
+  #header {
+    background-color: rgba(20, 20, 20, 0.88) !important;
+    color: #f5f5f5 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
   @media (prefers-color-scheme: light) {
+    html {
+      background-color: #f4f4f5 !important;
+    }
+    html:has(body.login) {
+      background-color: #0a0a0a !important;
+    }
     body:not(.login) {
       background-color: #f4f4f5 !important;
       color: #18181b !important;
     }
+    #header {
+      background-color: rgba(255, 255, 255, 0.94) !important;
+      color: #18181b !important;
+      border-bottom: 1px solid #e4e4e7 !important;
+    }
+  }
+  html[data-theme="dark"] {
+    background-color: #0a0a0a !important;
   }
   html[data-theme="dark"] body {
     background-color: #0a0a0a !important;
@@ -19,5 +44,5 @@
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="preload" href="{% static 'admin/custom_admin.css' %}?v=20260323-pchelka" as="style">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=optional" rel="stylesheet">
+<link rel="preload" href="{% static 'admin/custom_admin.css' %}?v=20260324-particles-fov" as="style">

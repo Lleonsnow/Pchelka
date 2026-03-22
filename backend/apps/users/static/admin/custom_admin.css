@@ -68,9 +68,15 @@ html[data-theme="dark"] {
   --shadow-md: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
-/* Плавные переходы между страницами (Chrome 126+ и др.) */
+/* Кросс-документные переходы: короче и мягче, чтобы меньше ощущалось «мигание» */
 @view-transition {
   navigation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.12s;
+  animation-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
 body {
@@ -688,41 +694,88 @@ select:focus {
   color: var(--text);
 }
 
-/* ---------- Страница входа ---------- */
+/* ---------- Страница входа (центр экрана, «мёд», без ряда шапка|форма) ---------- */
 body.login {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-body.login #header {
-  justify-content: center;
-  background: var(--surface);
-}
-
 body.login #container {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px 16px;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 0;
+  padding: 0;
+  position: relative;
+  z-index: 1;
 }
 
-body.login #content {
+body.login #header {
+  flex-shrink: 0;
+  justify-content: center;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+
+body.login #main,
+body.login .main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 16px 40px;
   width: 100%;
+  max-width: none;
+  float: none !important;
+  box-sizing: border-box;
+}
+
+body.login #content,
+body.login #content.colM {
+  float: none !important;
+  width: 100% !important;
   max-width: 420px;
-  margin: 0;
-  padding: 0;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  box-sizing: border-box;
 }
 
 body.login #content-main {
-  float: none;
+  float: none !important;
   width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-md);
+  margin: 0;
   padding: 28px 28px 24px;
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+@media (prefers-color-scheme: light) {
+  body.login #content-main {
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+  }
+}
+
+body.login #site-name a,
+body.login #header a:link,
+body.login #header a:visited {
+  color: #fff;
+}
+
+@media (prefers-color-scheme: light) {
+  body.login #site-name a,
+  body.login #header a:link,
+  body.login #header a:visited {
+    color: var(--text);
+  }
 }
 
 body.login .form-row {
@@ -733,13 +786,37 @@ body.login .form-row label {
   display: block;
   margin-bottom: 6px;
   font-weight: 600;
-  color: var(--text);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+@media (prefers-color-scheme: light) {
+  body.login .form-row label {
+    color: var(--text);
+  }
 }
 
 body.login input[type="text"],
 body.login input[type="password"] {
   width: 100%;
   box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+@media (prefers-color-scheme: light) {
+  body.login input[type="text"],
+  body.login input[type="password"] {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+}
+
+body.login input[type="text"]:focus,
+body.login input[type="password"]:focus {
+  border-color: rgba(251, 191, 36, 0.75);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22);
 }
 
 body.login .submit-row {
@@ -749,10 +826,41 @@ body.login .submit-row {
   text-align: stretch;
 }
 
-body.login .submit-row input {
+/* «Войти» — градиент мёда, не зелёно-синий как у общих кнопок */
+body.login .submit-row input[type="submit"] {
   width: 100%;
   padding: 12px 16px;
   font-size: 15px;
+  background: linear-gradient(135deg, #fbbf24 0%, #d97706 45%, #b45309 100%) !important;
+  border: 1px solid color-mix(in srgb, #b45309 65%, #000) !important;
+  color: #1a0f00 !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+  font-weight: 700;
+}
+
+body.login .submit-row input[type="submit"]:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 12px 28px rgba(217, 119, 6, 0.35);
+  transform: translateY(-1px);
+}
+
+body.login .submit-row input[type="submit"]:active {
+  transform: translateY(0);
+}
+
+body.login .errornote {
+  background: rgba(255, 107, 107, 0.12);
+  border: 1px solid rgba(255, 107, 107, 0.35);
+  color: #fecaca;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+@media (prefers-color-scheme: light) {
+  body.login .errornote {
+    color: var(--danger);
+  }
 }
 
 /* ---------- Таблицы: чуть плотнее заголовок ---------- */

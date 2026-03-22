@@ -1,36 +1,9 @@
-{# Анимированный фон и частицы на странице входа в админку (тёплые оттенки мёда / луга). #}
+{# Лёгкие частицы на фоне входа (без размытого полноэкранного слоя — он давал «огромный прямоугольник»). #}
 <style id="admin-login-ambient-styles">
-  .admin-login-ambient {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-  }
-  .admin-login-ambient::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(-45deg,
-      rgba(245, 158, 11, 0.18),
-      rgba(234, 179, 8, 0.14),
-      rgba(52, 211, 153, 0.12),
-      rgba(125, 211, 252, 0.14),
-      rgba(245, 158, 11, 0.2));
-    background-size: 400% 400%;
-    animation: adminLoginAmbientShift 15s ease infinite;
-    filter: blur(80px) brightness(0.85) saturate(1.35);
-  }
-  @keyframes adminLoginAmbientShift {
-    0% { background-position: 0% 50%; }
-    25% { background-position: 50% 50%; }
-    50% { background-position: 100% 50%; }
-    75% { background-position: 50% 50%; }
-    100% { background-position: 0% 50%; }
-  }
   #admin-login-particles {
     position: fixed;
     inset: 0;
-    z-index: 1;
+    z-index: 0;
     pointer-events: none;
   }
 </style>
@@ -38,47 +11,58 @@
 (function () {
   function init() {
     if (!document.body.classList.contains("login")) return;
-    var bg = document.createElement("div");
-    bg.className = "admin-login-ambient";
-    bg.setAttribute("aria-hidden", "true");
-    document.body.insertBefore(bg, document.body.firstChild);
     var canvas = document.createElement("canvas");
     canvas.id = "admin-login-particles";
-    document.body.insertBefore(canvas, bg.nextSibling);
+    canvas.setAttribute("aria-hidden", "true");
+    var skip = document.body.querySelector('a[href="#content-start"]');
+    if (skip && skip.parentNode) {
+      skip.parentNode.insertBefore(canvas, skip.nextSibling);
+    } else {
+      document.body.insertBefore(canvas, document.body.firstChild);
+    }
     var ctx = canvas.getContext("2d");
     var particles = [];
-    var density = 48;
+    var density = 40;
     function resize() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      var dpr = window.devicePixelRatio || 1;
+      var w = window.innerWidth;
+      var h = window.innerHeight;
+      canvas.style.width = w + "px";
+      canvas.style.height = h + "px";
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     function spawn() {
       particles = [];
+      var w = window.innerWidth;
+      var h = window.innerHeight;
       for (var i = 0; i < density; i++) {
         particles.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          radius: Math.random() * 2 + 1,
-          vx: (Math.random() - 0.5) * 0.5,
-          vy: (Math.random() - 0.5) * 0.5,
-          opacity: Math.random() * 0.5 + 0.2
+          x: Math.random() * w,
+          y: Math.random() * h,
+          radius: Math.random() * 1.4 + 0.6,
+          vx: (Math.random() - 0.5) * 0.45,
+          vy: (Math.random() - 0.5) * 0.45,
+          opacity: Math.random() * 0.35 + 0.12
         });
       }
     }
     function tick() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      var w = window.innerWidth;
+      var h = window.innerHeight;
+      ctx.clearRect(0, 0, w, h);
+      ctx.shadowBlur = 0;
       for (var j = 0; j < particles.length; j++) {
         var p = particles[j];
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = "rgba(253, 224, 71, 0.45)";
-        ctx.fillStyle = "rgba(255, 248, 220, " + p.opacity + ")";
+        ctx.fillStyle = "rgba(255, 236, 180, " + p.opacity + ")";
         ctx.fill();
         p.x += p.vx;
         p.y += p.vy;
-        if (p.x <= 0 || p.x >= canvas.width) p.vx *= -1;
-        if (p.y <= 0 || p.y >= canvas.height) p.vy *= -1;
+        if (p.x <= 0 || p.x >= w) p.vx *= -1;
+        if (p.y <= 0 || p.y >= h) p.vy *= -1;
       }
       requestAnimationFrame(tick);
     }
