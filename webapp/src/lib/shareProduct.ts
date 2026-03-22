@@ -3,27 +3,31 @@
 import { getWebAppConfig } from "./api";
 import { getTelegramWebApp } from "./telegram";
 
-let sharingCfgPromise: Promise<{ bot: string; miniappShort: string }> | null = null;
+function normId(s: string | undefined): string {
+  return String(s ?? "")
+    .replace(/[\r\n\t]+/g, "")
+    .trim()
+    .replace(/^@/, "");
+}
 
+/** Сначала переменные из next.config (Docker build / локальный .env), затем API. */
 async function getSharingCfg(): Promise<{ bot: string; miniappShort: string }> {
-  if (!sharingCfgPromise) {
-    sharingCfgPromise = (async () => {
-      try {
-        const c = await getWebAppConfig();
-        const norm = (s: string) =>
-          String(s || "")
-            .replace(/[\r\n\t]+/g, "")
-            .trim();
-        return {
-          bot: norm(c.telegram_bot_username || "").replace(/^@/, ""),
-          miniappShort: norm(c.miniapp_short_name || ""),
-        };
-      } catch {
-        return { bot: "", miniappShort: "" };
-      }
-    })();
+  const fromBuild = {
+    bot: normId(process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME),
+    miniappShort: normId(process.env.NEXT_PUBLIC_TELEGRAM_MINIAPP_SHORT_NAME),
+  };
+  if (fromBuild.bot) {
+    return fromBuild;
   }
-  return sharingCfgPromise;
+  try {
+    const c = await getWebAppConfig();
+    return {
+      bot: normId(c.telegram_bot_username),
+      miniappShort: normId(c.miniapp_short_name),
+    };
+  } catch {
+    return { bot: "", miniappShort: "" };
+  }
 }
 
 function sanitizeUrl(u: string): string {
@@ -31,16 +35,10 @@ function sanitizeUrl(u: string): string {
 }
 
 /**
- * В Mini App шарим HTTPS-URL страницы товара — у Telegram нормальное превью (og из layout).
- * Иначе — t.me (WebApp short name или ?start= в чат с ботом).
+ * Ссылка на товар: только t.me (Mini App / чат с ботом), без голого HTTPS сайта —
+ * чтобы не уводить людей во внешний браузер.
  */
 async function productEntryUrl(productId: number): Promise<string | null> {
-  if (typeof window !== "undefined") {
-    const origin = sanitizeUrl(window.location?.origin || "");
-    if (origin && /^https?:\/\//i.test(origin)) {
-      return sanitizeUrl(`${origin.replace(/\/$/, "")}/catalog/product/${productId}`);
-    }
-  }
   const { bot, miniappShort } = await getSharingCfg();
   if (bot && miniappShort) {
     return sanitizeUrl(`https://t.me/${bot}/${miniappShort}?startapp=product_${productId}`);
@@ -49,7 +47,10 @@ async function productEntryUrl(productId: number): Promise<string | null> {
     return sanitizeUrl(`https://t.me/${bot}?start=product_${productId}`);
   }
   if (typeof window !== "undefined") {
-    return sanitizeUrl(`${window.location.origin}/catalog/product/${productId}`);
+    const origin = sanitizeUrl(window.location?.origin || "");
+    if (origin && /^https?:\/\//i.test(origin)) {
+      return sanitizeUrl(`${origin.replace(/\/$/, "")}/catalog/product/${productId}`);
+    }
   }
   return null;
 }
@@ -60,14 +61,9 @@ export async function shareProductLink(
   productName: string,
   productId: number,
 ): Promise<ShareProductResult> {
-  const urlToShare = sanitizeUrl(await productEntryUrl(productId) || "");
+  const urlToShare = sanitizeUrl((await productEntryUrl(productId)) || "");
   if (!urlToShare) return "noop";
 
-  /**
-   * t.me/share/url с отдельными url + text даёт в чате две «голые» строки без единой карточки.
-   * Одна ссылка в параметре url — клиент Telegram чаще показывает превью t.me и нормальный переход в бота.
-   * Название передаём только в нативный share (title), не дублируем text+url.
-   */
   const shareParams = new URLSearchParams({ url: urlToShare });
   const shareHref = `https://t.me/share/url?${shareParams.toString()}`;
 

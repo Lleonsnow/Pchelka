@@ -24,14 +24,15 @@ function parseEnvFile(filePath) {
 }
 
 /**
- * Пробрасываем в Next только NEXT_PUBLIC_* из корневого .env (например NEXT_PUBLIC_API_URL для dev).
- * TELEGRAM_BOT_USERNAME — только на бэкенде; WebApp читает через /api/webapp/config/.
+ * NEXT_PUBLIC_* из корневого .env + TELEGRAM_* для шаринга t.me (в Docker build args дублируют).
  */
 const rootEnvPath = path.join(__dirname, "..", ".env");
 const parsed = parseEnvFile(rootEnvPath);
 const nextPublicFromRoot = Object.fromEntries(
   Object.entries(parsed).filter(([k]) => k.startsWith("NEXT_PUBLIC_")),
 );
+const telegramBotUser = (parsed.TELEGRAM_BOT_USERNAME || "").trim().replace(/^@/, "");
+const telegramMiniappShort = (parsed.TELEGRAM_MINIAPP_SHORT_NAME || "").trim();
 /** SSR (generateMetadata): из корневого .env при next dev на хосте; в Docker задаёт compose. Не кладём в env — не светим в клиентском бандле. */
 if (parsed.BACKEND_INTERNAL_URL) {
   process.env.BACKEND_INTERNAL_URL = String(parsed.BACKEND_INTERNAL_URL).trim();
@@ -40,7 +41,11 @@ if (parsed.BACKEND_INTERNAL_URL) {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  env: nextPublicFromRoot,
+  env: {
+    ...nextPublicFromRoot,
+    NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: telegramBotUser,
+    NEXT_PUBLIC_TELEGRAM_MINIAPP_SHORT_NAME: telegramMiniappShort,
+  },
 };
 
 module.exports = nextConfig;
