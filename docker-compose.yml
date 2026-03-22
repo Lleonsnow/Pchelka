@@ -39,6 +39,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      MEDIA_FETCH_BASE_URL: http://backend:8000
     volumes:
       - ./bot:/app
     depends_on:
