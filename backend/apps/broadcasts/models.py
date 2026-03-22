@@ -1,6 +1,32 @@
 from django.db import models
 
 
+class BroadcastTemplate(models.Model):
+    """Текст и картинка для быстрой отправки (админка и админ-чат бота)."""
+
+    name = models.CharField("Название", max_length=128)
+    text = models.TextField("Текст (HTML как в Telegram)")
+    image = models.ImageField(
+        "Картинка",
+        upload_to="broadcast_templates/%Y/%m/",
+        null=True,
+        blank=True,
+    )
+    is_active = models.BooleanField("Активен", default=True)
+    order = models.PositiveSmallIntegerField("Порядок", default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "broadcasts_broadcasttemplate"
+        verbose_name = "Шаблон рассылки"
+        verbose_name_plural = "Шаблоны рассылок"
+        ordering = ["order", "id"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Broadcast(models.Model):
     class Status(models.TextChoices):
         DRAFT = "draft", "Черновик"

@@ -24,7 +24,15 @@ def _webapp_base_url(config: BotConfig) -> str:
     return (config.webapp_url or "").strip()
 
 
+def _tg_link_kw(config: BotConfig) -> dict[str, str]:
+    return {
+        "bot_username": (config.TELEGRAM_BOT_USERNAME or "").strip().lstrip("@"),
+        "miniapp_short": (config.TELEGRAM_MINIAPP_SHORT_NAME or "").strip(),
+    }
+
+
 def _product_url(config: BotConfig, path: str) -> str:
+    path = (path or "").strip().replace("\n", "").replace("\r", "")
     if not path:
         return ""
     base = _media_base_url(config)
@@ -41,7 +49,12 @@ async def _send_product_card(
     edit: bool = False,
 ) -> None:
     text = f"<b>{product.name}</b>\n\n{product.description or '—'}\n\n💰 {product.price} ₽"
-    keyboard = product_card_keyboard(category_id, product.id, _webapp_base_url(config) or None)
+    keyboard = product_card_keyboard(
+        category_id,
+        product.id,
+        _webapp_base_url(config) or None,
+        **_tg_link_kw(config),
+    )
     if product.image_paths:
         urls = [_product_url(config, p) for p in product.image_paths if _product_url(config, p)]
         if urls:
@@ -88,6 +101,7 @@ async def catalog_root(message: Message, session_factory, config: BotConfig) -> 
         page=0,
         total_pages=1,
         is_products_view=False,
+        **_tg_link_kw(config),
     )
     await message.answer("🍯 Выберите категорию:", reply_markup=keyboard)
 
@@ -107,6 +121,7 @@ async def catalog_cb_root(callback: CallbackQuery, session_factory, config: BotC
         page=0,
         total_pages=1,
         is_products_view=False,
+        **_tg_link_kw(config),
     )
     await callback.message.edit_text("🍯 Выберите категорию:", reply_markup=keyboard)
     await callback.answer()
@@ -138,6 +153,7 @@ async def catalog_cb_open(callback: CallbackQuery, callback_data: CatalogCallbac
             page=0,
             total_pages=1,
             is_products_view=False,
+            **_tg_link_kw(config),
         )
         await callback.message.edit_text("🍯 Выберите категорию:", reply_markup=keyboard)
     elif products_count > 0:
@@ -155,6 +171,7 @@ async def catalog_cb_open(callback: CallbackQuery, callback_data: CatalogCallbac
             total_pages=total_pages,
             is_products_view=True,
             product_buttons=product_buttons,
+            **_tg_link_kw(config),
         )
         await callback.message.edit_text("\n".join(lines), reply_markup=keyboard)
     else:
@@ -187,6 +204,7 @@ async def catalog_cb_products(callback: CallbackQuery, callback_data: CatalogCal
         total_pages=total_pages,
         is_products_view=True,
         product_buttons=product_buttons,
+        **_tg_link_kw(config),
     )
     await callback.message.edit_text("\n".join(lines), reply_markup=keyboard)
     await callback.answer()
@@ -218,6 +236,7 @@ async def catalog_cb_back(callback: CallbackQuery, callback_data: CatalogCallbac
             page=0,
             total_pages=1,
             is_products_view=False,
+            **_tg_link_kw(config),
         )
         await callback.message.edit_text("🍯 Выберите категорию:", reply_markup=keyboard)
     else:
@@ -238,6 +257,7 @@ async def catalog_cb_back(callback: CallbackQuery, callback_data: CatalogCallbac
                 page=0,
                 total_pages=1,
                 is_products_view=False,
+                **_tg_link_kw(config),
             )
             await callback.message.edit_text("🍯 Выберите категорию:", reply_markup=keyboard)
         elif products_count > 0:
@@ -255,6 +275,7 @@ async def catalog_cb_back(callback: CallbackQuery, callback_data: CatalogCallbac
                 total_pages=total_pages,
                 is_products_view=True,
                 product_buttons=product_buttons,
+                **_tg_link_kw(config),
             )
             await callback.message.edit_text("\n".join(lines), reply_markup=keyboard)
         else:

@@ -2,6 +2,49 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 
+def _tme_miniapp_url(bot_username: str, miniapp_short: str, startapp: str | None) -> str | None:
+    bu = (bot_username or "").strip().lstrip("@")
+    if not bu or not (miniapp_short or "").strip():
+        return None
+    short = miniapp_short.strip()
+    if startapp:
+        return f"https://t.me/{bu}/{short}?startapp={startapp}"
+    return f"https://t.me/{bu}/{short}"
+
+
+def _tme_product_url(bot_username: str, miniapp_short: str, product_id: int) -> str | None:
+    sp = f"product_{product_id}"
+    u = _tme_miniapp_url(bot_username, miniapp_short, sp)
+    if u:
+        return u
+    bu = (bot_username or "").strip().lstrip("@")
+    if bu:
+        return f"https://t.me/{bu}?start={sp}"
+    return None
+
+
+def _tme_catalog_entry_url(bot_username: str, miniapp_short: str) -> str | None:
+    """Корень Mini App в Telegram (без ухода во внешний браузер)."""
+    return _tme_miniapp_url(bot_username, miniapp_short, None)
+
+
+def _webapp_url_catalog(base: str, *, category_id: int) -> str:
+    """Корень + /catalog; при category_id > 0 — та же ветка, что в боте (?category=)."""
+    b = (base or "").strip().rstrip("/")
+    if not b:
+        return ""
+    if category_id:
+        return f"{b}/catalog?category={category_id}"
+    return f"{b}/catalog"
+
+
+def _webapp_url_product(base: str, product_id: int) -> str:
+    b = (base or "").strip().rstrip("/")
+    if not b:
+        return ""
+    return f"{b}/catalog/product/{product_id}"
+
+
 class CatalogCallbackData(CallbackData, prefix="cat"):
     action: str  # root, open, products, product, back
     category_id: int = 0
@@ -24,6 +67,9 @@ def build_catalog_keyboard(
     total_pages: int,
     is_products_view: bool,
     product_buttons: list[tuple[str, str]] | None = None,
+    *,
+    bot_username: str = "",
+    miniapp_short: str = "",
 ) -> InlineKeyboardMarkup:
     """Клавиатура каталога: категории или товары с пагинацией и кнопкой WebApp.
     product_buttons: список (текст кнопки, callback_data) для списка товаров.
@@ -82,18 +128,33 @@ def build_catalog_keyboard(
                 )
             ])
 
-    if base_url:
-        buttons.append([
-            InlineKeyboardButton(
-                text="📱 Открыть каталог в браузере",
-                web_app=WebAppInfo(url=base_url),
-            )
-        ])
+    web_url = _webapp_url_catalog(base_url, category_id=category_id)
+    tme_entry = _tme_catalog_entry_url(bot_username, miniapp_short)
+    if tme_entry:
+        buttons.append(
+            [InlineKeyboardButton(text="📱 Открыть магазин", url=tme_entry)]
+        )
+    elif web_url:
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text="📱 Открыть каталог",
+                    web_app=WebAppInfo(url=web_url),
+                )
+            ]
+        )
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def product_card_keyboard(category_id: int, product_id: int, base_url: str | None) -> InlineKeyboardMarkup:
-    """Клавиатура карточки товара: В корзину + назад к категории + WebApp."""
+def product_card_keyboard(
+    category_id: int,
+    product_id: int,
+    base_url: str | None,
+    *,
+    bot_username: str = "",
+    miniapp_short: str = "",
+) -> InlineKeyboardMarkup:
+    """Клавиатура карточки товара: корзина, назад, вход в Mini App по t.me (без внешнего браузера)."""
     buttons = [
         [
             InlineKeyboardButton(
@@ -108,11 +169,20 @@ def product_card_keyboard(category_id: int, product_id: int, base_url: str | Non
             )
         ],
     ]
-    if base_url:
-        buttons.append([
-            InlineKeyboardButton(
-                text="📱 Открыть в браузере",
-                web_app=WebAppInfo(url=base_url),
+    tme = _tme_product_url(bot_username, miniapp_short, product_id)
+    if tme:
+        buttons.append(
+            [InlineKeyboardButton(text="🛍 Открыть в магазине", url=tme)]
+        )
+    else:
+        web_url = _webapp_url_product(base_url, product_id) if base_url else ""
+        if web_url:
+            buttons.append(
+                [
+                    InlineKeyboardButton(
+                        text="📱 Открыть в каталоге",
+                        web_app=WebAppInfo(url=web_url),
+                    )
+                ]
             )
-        ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)

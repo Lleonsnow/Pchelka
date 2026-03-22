@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { hideBackButton, setupBackButton } from "@/lib/telegram";
+import { useAsyncData } from "@/lib/useAsyncData";
 import { getOrders, type OrderListItem } from "@/lib/api";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -29,20 +29,17 @@ function formatOrderDate(iso: string): string {
 }
 
 export default function ProfilePage() {
-  const [orders, setOrders] = useState<OrderListItem[]>([]);
-  const [ordersLoading, setOrdersLoading] = useState(true);
+  const { data: orders, loading: ordersLoading } = useAsyncData<OrderListItem[]>(
+    () => getOrders().catch(() => [] as OrderListItem[]),
+    [],
+  );
 
   useEffect(() => {
     setupBackButton(() => window.history.back());
     return () => hideBackButton();
   }, []);
 
-  useEffect(() => {
-    getOrders()
-      .then(setOrders)
-      .catch(() => setOrders([]))
-      .finally(() => setOrdersLoading(false));
-  }, []);
+  const list = orders ?? [];
 
   return (
     <div className="page page--profile">
@@ -55,12 +52,12 @@ export default function ProfilePage() {
         <h2 className="profileSection__title">Мои заказы</h2>
         {ordersLoading ? (
           <p className="profileSection__muted">Загрузка…</p>
-        ) : orders.length === 0 ? (
+        ) : list.length === 0 ? (
           <p className="profileSection__muted">Пока нет заказов</p>
         ) : (
           <div className="orderListScroll">
             <ul className="orderList">
-            {orders.map((o) => (
+            {list.map((o) => (
               <li key={o.id} className="orderCard">
                 <div className="orderCard__row">
                   <span className="orderCard__id">#{o.id}</span>
@@ -86,4 +83,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-

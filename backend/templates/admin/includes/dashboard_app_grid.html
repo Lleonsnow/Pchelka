@@ -1,0 +1,36 @@
+{% load i18n %}
+
+{% if app_list %}
+  <div class="app-grid">
+    {% for app in app_list %}
+      <section class="app-card app-{{ app.app_label }} module">
+        <header class="app-card__header">
+          <h2>{{ app.name }}</h2>
+        </header>
+        <div class="app-card__body">
+          {% for model in app.models %}
+            <div class="app-model-row">
+              <div class="app-model-row__name">
+                {% if model.admin_url %}
+                  <a href="{{ model.admin_url }}">{{ model.name }}</a>
+                {% else %}
+                  {{ model.name }}
+                {% endif %}
+              </div>
+              <div class="app-model-row__actions">
+                {% if model.add_url %}
+                  <a href="{{ model.add_url }}" class="addlink">{% translate 'Добавить' %}</a>
+                {% endif %}
+                {% if model.admin_url and show_changelinks %}
+                  <a href="{{ model.admin_url }}" class="changelink">{% translate 'Изменить' %}</a>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+{% else %}
+  <p>{% translate 'У вас нет прав на просмотр или изменение данных.' %}</p>
+{% endif %}

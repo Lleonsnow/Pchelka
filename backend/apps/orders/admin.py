@@ -2,6 +2,7 @@ import io
 from datetime import datetime
 from django.contrib import admin
 from django.http import HttpResponse
+from django.utils.html import format_html
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
@@ -16,12 +17,24 @@ class OrderItemInline(admin.TabularInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "status", "total", "created_at")
+    list_display = ("id", "user", "status_badge", "total", "created_at")
     list_filter = ("status",)
     search_fields = ("user__telegram_id", "phone", "full_name")
     inlines = [OrderItemInline]
     readonly_fields = ("created_at", "updated_at")
     actions = ["export_paid_to_excel"]
+    list_select_related = ("user",)
+    list_per_page = 25
+    date_hierarchy = "created_at"
+
+    @admin.display(description="Статус", ordering="status")
+    def status_badge(self, obj: Order):
+        code = (obj.status or "").replace("_", "-")
+        return format_html(
+            '<span class="status-badge status-{}">{}</span>',
+            code,
+            obj.get_status_display(),
+        )
 
     @admin.action(description="Экспорт оплаченных заказов в Excel")
     def export_paid_to_excel(self, request, queryset):

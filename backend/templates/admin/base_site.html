@@ -1,0 +1,24 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block extrahead %}
+  {{ block.super }}
+  {% include "admin/includes/critical_admin_head.html" %}
+  {% if not is_popup %}
+    {% include "admin/includes/admin_nav_prefetch.html" %}
+  {% endif %}
+  {% if "/admin/login" in request.path %}
+    {% include "admin/includes/admin_login_ambient.html" %}
+  {% endif %}
+{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'admin/custom_admin.css' %}?v=20260325-login-nav">
+{% endblock %}
+
+{% block branding %}
+  <h1 id="site-name">
+    <a href="{% url 'admin:index' %}">Пчёлка — админка</a>
+  </h1>
+{% endblock %}

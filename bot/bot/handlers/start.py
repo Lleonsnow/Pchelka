@@ -1,6 +1,8 @@
+import re
+
 from aiogram import Router, F
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, CommandObject
 
 from bot.config import BotConfig
 from bot.database import get_session
@@ -10,36 +12,53 @@ from bot.keyboards.start import REQUEST_CONTACT, get_main_menu
 router = Router(name="start")
 
 
+def _extract_start_payload(message: Message, command: CommandObject) -> str:
+    """
+    Payload после /start (deep link t.me/bot?start=product_<id>).
+    Иногда command.args пустой, а текст в message.text — учитываем /start@BotName.
+    """
+    raw = (command.args or "").strip()
+    if raw:
+        return raw.split()[0].lower()
+    txt = (message.text or "").strip()
+    if not txt:
+        return ""
+    parts = txt.split(maxsplit=1)
+    if not parts[0].startswith("/start"):
+        return ""
+    if len(parts) < 2:
+        return ""
+    return parts[1].strip().lower().split()[0]
+
+
 @router.message(CommandStart())
 async def cmd_start(
     message: Message,
+    command: CommandObject,
     user: UserData,
     session_factory,
     config: BotConfig,
 ) -> None:
-    # Deep link: t.me/bot?start=product_<id>
-    if message.text and " " in message.text:
-        args = message.text.split(maxsplit=1)[1].strip().lower()
-        if args.startswith("product_"):
-            pid_str = args[8:].strip()
-            if pid_str.isdigit():
-                from bot.handlers.catalog import show_product_card_by_id
-                ok = await show_product_card_by_id(
-                    message, int(pid_str), session_factory, config
-                )
-                if ok and user.phone:
-                    await message.answer(
-                        "Выбери действие в меню ниже.",
-                        reply_markup=get_main_menu(),
-                    )
-                elif ok:
-                    await message.answer(
-                        "Для заказов поделитесь контактом.",
-                        reply_markup=REQUEST_CONTACT,
-                    )
-                else:
-                    await message.answer("Товар не найден.")
-                return
+    args = _extract_start_payload(message, command)
+    m_product = re.match(r"^product_(\d+)", args)
+    if m_product:
+        pid = int(m_product.group(1))
+        from bot.handlers.catalog import show_product_card_by_id
+
+        ok = await show_product_card_by_id(message, pid, session_factory, config)
+        if ok and user.phone:
+            await message.answer(
+                "Выбери действие в меню ниже.",
+                reply_markup=get_main_menu(),
+            )
+        elif ok:
+            await message.answer(
+                "Для заказов поделитесь контактом.",
+                reply_markup=REQUEST_CONTACT,
+            )
+        else:
+            await message.answer("Товар не найден.")
+        return
 
     webapp_url = (config.webapp_url or "").strip()
     webapp_kb = (
@@ -114,15 +133,17 @@ async def cmd_my_orders(message: Message, config: BotConfig) -> None:
     )
 
 
-@router.message(Command("help"))
-@router.message(F.text.in_({"❓ Помощь", "Помощь"}))
+@router.message(Command("help"), F.chat.type == "private")
+@router.message(F.text.in_({"❓ Помощь", "Помощь"}), F.chat.type == "private")
 async def cmd_help(message: Message) -> None:
     await message.answer(
         "Команды бота:\n"
         "/start — начать\n"
         "/catalog — каталог товаров\n"
         "/cart — корзина\n"
-        "/help — эта справка"
+        "/help — эта справка\n\n"
+        "Частые вопросы: в любом чате наберите @имя_бота и строку поиска "
+        "(пустой запрос — популярные вопросы); выберите пункт — ответ уйдёт в чат."
     )
 
 

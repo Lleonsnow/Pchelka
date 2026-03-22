@@ -1,13 +1,12 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { AppHeader } from "./AppHeader";
+import { TelegramDeepLinkRedirect } from "./TelegramDeepLinkRedirect";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname() ?? "/";
-
   return (
     <div className="appShell">
+      <TelegramDeepLinkRedirect />
       <AppHeader />
       <main className="appMain" role="main">
         {children}

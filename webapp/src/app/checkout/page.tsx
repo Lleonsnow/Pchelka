@@ -1,10 +1,19 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { setupBackButton, hideBackButton } from "@/lib/telegram";
-import { getCart, createOrder } from "@/lib/api";
+import {
+  setupBackButton,
+  hideBackButton,
+  setupMainButton,
+  hideMainButton,
+  getTelegramWebApp,
+  getTelegramUnsafeUserPhone,
+} from "@/lib/telegram";
+import { CheckCircle2, ShoppingCart } from "lucide-react";
+import { useAsyncData } from "@/lib/useAsyncData";
+import { getCart, createOrder, getMe } from "@/lib/api";
 
 const CHECKOUT_STORAGE_KEY = "tg-shop-checkout-last";
 
@@ -35,31 +44,46 @@ function saveCheckoutData(data: { full_name: string; address: string; phone: str
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const [total, setTotal] = useState<string>("0");
-  const [itemsCount, setItemsCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const submitRef = useRef<() => void>(() => {});
+  const [hasTelegramMainButton, setHasTelegramMainButton] = useState(false);
+  const { data: cart, loading, error, setError } = useAsyncData(() => getCart(), []);
+  const total = cart?.total ?? "0";
+  const itemsCount = cart?.items.length ?? 0;
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [form, setForm] = useState({ full_name: "", address: "", phone: "" });
   const [fieldErrors, setFieldErrors] = useState<{ full_name?: string; address?: string; phone?: string }>({});
 
   useEffect(() => {
-    setForm((prev) => {
-      const saved = getSavedCheckoutData();
-      if (!saved.full_name && !saved.address && !saved.phone) return prev;
-      return saved;
-    });
-  }, []);
-
-  useEffect(() => {
-    getCart()
-      .then((data) => {
-        setTotal(data.total);
-        setItemsCount(data.items.length);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    const saved = getSavedCheckoutData();
+    setForm((prev) => ({
+      full_name: saved.full_name || prev.full_name,
+      address: saved.address || prev.address,
+      phone: saved.phone || prev.phone,
+    }));
+    if (saved.phone) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    (async () => {
+      let profilePhone = "";
+      try {
+        const me = await getMe();
+        if (!cancelled) profilePhone = (me.phone || "").trim();
+      } catch {
+        // нет initData / dev в браузере
+      }
+      if (cancelled) return;
+      const fromTg = getTelegramUnsafeUserPhone();
+      const phone = (profilePhone || fromTg || "").trim();
+      if (!phone) return;
+      setForm((f) => (f.phone.trim() ? f : { ...f, phone }));
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -117,6 +141,27 @@ export default function CheckoutPage() {
       });
   }, [form, itemsCount, submitting]);
 
+  useEffect(() => {
+    submitRef.current = handleSubmit;
+  }, [handleSubmit]);
+
+  useEffect(() => {
+    setupMainButton("Подтвердить заказ", () => submitRef.current());
+    setHasTelegramMainButton(!!getTelegramWebApp()?.MainButton);
+    return () => hideMainButton();
+  }, []);
+
+  useEffect(() => {
+    const mainButton = getTelegramWebApp()?.MainButton;
+    if (!mainButton) return;
+    if (loading || success || itemsCount === 0) {
+      mainButton.hide();
+      return;
+    }
+    mainButton.setText(submitting ? "Отправка..." : "Подтвердить заказ");
+    mainButton.show();
+  }, [loading, success, itemsCount, submitting]);
+
 
   if (loading) {
     return (
@@ -130,7 +175,9 @@ export default function CheckoutPage() {
     return (
       <div className="page">
         <div className="empty-state empty-state--cart">
-          <span className="empty-state__icon" aria-hidden>🛒</span>
+          <span className="empty-state__icon" aria-hidden>
+            <ShoppingCart strokeWidth={1.75} />
+          </span>
           <p className="empty-state__text">Корзина пуста</p>
           <p className="empty-state__hint">Добавьте товары из каталога</p>
         </div>
@@ -142,7 +189,9 @@ export default function CheckoutPage() {
     return (
       <div className="page">
         <div className="card successCard">
-          <div className="successMark" aria-hidden>✓</div>
+          <div className="successMark" aria-hidden>
+            <CheckCircle2 strokeWidth={2} />
+          </div>
           <h1 className="page__title mt-0 mb-1">Заказ оформлен</h1>
           <p className="text--secondary mb-0">
             Сумма: <strong className="text--price">{total} ₽</strong>. Мы свяжемся с вами для подтверждения и оплаты.
@@ -235,14 +284,16 @@ export default function CheckoutPage() {
           <span>Проверим данные и свяжемся для подтверждения.</span>
           <span>Итого: {total} ₽</span>
         </div>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="btn btn--primary btn--full"
-          style={{ marginTop: 18 }}
-        >
-          {submitting ? "Отправка…" : "Подтвердить заказ"}
-        </button>
+        {!hasTelegramMainButton && (
+          <button
+            type="submit"
+            disabled={submitting}
+            className="btn btn--primary btn--full"
+            style={{ marginTop: 18 }}
+          >
+            {submitting ? "Отправка…" : "Подтвердить заказ"}
+          </button>
+        )}
       </form>
     </div>
   );

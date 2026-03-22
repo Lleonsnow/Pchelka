@@ -24,6 +24,9 @@ class UserMiddleware(BaseMiddleware):
         if not isinstance(update, Update):
             return await handler(event, data)
 
+        # Фабрика сессий нужна многим хендлерам (в т.ч. channel_post / bind_admin_chat).
+        data["session_factory"] = self.session_factory
+
         from_user = None
         if update.message:
             from_user = update.message.from_user
@@ -35,6 +38,10 @@ class UserMiddleware(BaseMiddleware):
             from_user = update.chat_member.from_user
         elif update.my_chat_member:
             from_user = update.my_chat_member.from_user
+        elif update.channel_post:
+            from_user = update.channel_post.from_user
+        elif update.edited_channel_post:
+            from_user = update.edited_channel_post.from_user
         else:
             return await handler(event, data)
 
@@ -50,5 +57,4 @@ class UserMiddleware(BaseMiddleware):
                 last_name=from_user.last_name or "",
             )
         data["user"] = user
-        data["session_factory"] = self.session_factory
         return await handler(event, data)

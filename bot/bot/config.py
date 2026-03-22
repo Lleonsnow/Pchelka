@@ -22,6 +22,12 @@ class BotConfig(BaseSettings):
     BOT_NOTIFY_PORT: int = Field(default=8080, description="Порт aiohttp для /notify")
     MEDIA_BASE_URL: str = Field(..., description="Базовый URL медиа (фото товаров), без слэша в конце")
     TELEGRAM_WEBAPP_HOST: str = Field(default="", description="URL WebApp (Mini App) для кнопки меню и открытия каталога")
+    TELEGRAM_BOT_USERNAME: str = Field(default="", description="Username без @ — ссылки t.me в клавиатурах")
+    TELEGRAM_MINIAPP_SHORT_NAME: str = Field(default="", description="Direct Link в BotFather → t.me/bot/SHORT")
+    MEDIA_FETCH_BASE_URL: str = Field(
+        default="",
+        description="Скачивание файлов рассылки ботом; пусто = MEDIA_BASE_URL. В Docker: http://backend:8000",
+    )
 
     @property
     def token(self) -> str:
@@ -37,7 +43,7 @@ class BotConfig(BaseSettings):
 
     @property
     def media_base_url(self) -> str:
-        return self.MEDIA_BASE_URL.rstrip("/")
+        return (self.MEDIA_BASE_URL or "").strip().rstrip("/")
 
     @property
     def notify_port(self) -> int:
@@ -45,4 +51,12 @@ class BotConfig(BaseSettings):
 
     @property
     def webapp_url(self) -> str:
-        return (self.TELEGRAM_WEBAPP_HOST or "").rstrip("/")
+        return (self.TELEGRAM_WEBAPP_HOST or "").strip().rstrip("/")
+
+    @property
+    def media_download_base_url(self) -> str:
+        """База для HTTP-скачивания медиа контейнером бота (рассылки)."""
+        internal = (self.MEDIA_FETCH_BASE_URL or "").strip().rstrip("/")
+        if internal:
+            return internal
+        return self.media_base_url

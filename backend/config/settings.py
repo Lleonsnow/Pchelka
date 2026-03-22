@@ -14,6 +14,8 @@ BOT_INTERNAL_URL = _env.BOT_INTERNAL_URL or ""
 TELEGRAM_BOT_TOKEN = (getattr(_env, "BOT_TOKEN", "") or "").strip()
 TELEGRAM_WEBAPP_HOST = getattr(_env, "TELEGRAM_WEBAPP_HOST", "") or ""
 DEV_WEBAPP_TELEGRAM_ID = getattr(_env, "DEV_WEBAPP_TELEGRAM_ID", "") or ""
+TELEGRAM_BOT_USERNAME = (_env.TELEGRAM_BOT_USERNAME or "").strip().lstrip("@")
+TELEGRAM_MINIAPP_SHORT_NAME = (_env.TELEGRAM_MINIAPP_SHORT_NAME or "").strip()
 
 CORS_ALLOWED_ORIGINS = list({
     *([] if not TELEGRAM_WEBAPP_HOST else [TELEGRAM_WEBAPP_HOST.rstrip("/")]),
@@ -75,6 +77,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -89,7 +92,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -124,8 +127,9 @@ TIME_ZONE = "Europe/Moscow"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

@@ -7,7 +7,7 @@ from pathlib import Path
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import BotCommand, MenuButtonWebApp, WebAppInfo
+from aiogram.types import MenuButtonWebApp, WebAppInfo
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from bot.config import BotConfig
@@ -24,31 +24,30 @@ from bot.middlewares.user_middleware import UserMiddleware
 from bot.middlewares.subscription_middleware import SubscriptionMiddleware
 from bot.notify_server import run_notify_server
 from bot.broadcast_sender import run_broadcast_worker
+from bot.menu_commands import apply_all_command_scopes
 
 _log_dir = Path(__file__).resolve().parent.parent / "logs"
 _log_dir.mkdir(parents=True, exist_ok=True)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
+_handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+try:
+    _handlers.append(
         logging.handlers.RotatingFileHandler(
             _log_dir / "bot.log",
             maxBytes=10 * 1024 * 1024,
             backupCount=5,
-        ),
-    ],
+        )
+    )
+except PermissionError:
+    # В volume-файле могут остаться root-права; не валим запуск бота из-за файла логов.
+    pass
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    handlers=_handlers,
 )
 logger = logging.getLogger(__name__)
-
-BOT_COMMANDS = [
-    BotCommand(command="start", description="Начать"),
-    BotCommand(command="catalog", description="Каталог"),
-    BotCommand(command="cart", description="Корзина"),
-    BotCommand(command="help", description="Помощь"),
-]
-
 
 async def main() -> None:
     config = BotConfig()
@@ -70,7 +69,7 @@ async def main() -> None:
     dp.include_router(admin_router.router)
     dp.include_router(faq_router.router)
 
-    await bot.set_my_commands(BOT_COMMANDS)
+    await apply_all_command_scopes(bot, session_factory)
 
     if config.webapp_url:
         await bot.set_chat_menu_button(

@@ -119,6 +119,40 @@ export type CartResponse = {
   total: string;
 };
 
+export type FaqItem = {
+  id: number;
+  question: string;
+  answer: string;
+  order: number;
+};
+
+export type WebAppConfig = {
+  telegram_bot_username: string;
+  /** Короткое имя из BotFather → t.me/bot/SHORT?startapp=… Пусто — шаринг через ?start= в чат с ботом. */
+  miniapp_short_name: string;
+};
+
+/** Публичный конфиг WebApp (бот + short name Mini App). */
+export async function getWebAppConfig(): Promise<WebAppConfig> {
+  return apiFetch<WebAppConfig>("/config/");
+}
+
+/** Публичный список FAQ (доступен без авторизации). */
+export async function getFaq(): Promise<FaqItem[]> {
+  return apiFetch<FaqItem[]>("/faq/");
+}
+
+export type WebAppMe = {
+  phone: string;
+  first_name: string;
+  last_name: string;
+};
+
+/** Телефон и имя из профиля (после контакта в боте). Требует X-Telegram-Init-Data. */
+export async function getMe(): Promise<WebAppMe> {
+  return apiFetch<WebAppMe>("/me/");
+}
+
 export async function getCategories(parentId?: number): Promise<Category[]> {
   const q = parentId != null ? `?parent_id=${parentId}` : "";
   return apiFetch<Category[]>(`/catalog/categories/${q}`);

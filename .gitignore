@@ -41,6 +41,12 @@ webapp/.vercel
 webapp/.turbo
 webapp/.swc/
 
+# Let's Encrypt (локально не коммитим ключи)
+ssl/*
+!ssl/.gitkeep
+certbot-webroot/*
+!certbot-webroot/.gitkeep
+
 # OS
 .DS_Store
 Thumbs.db
@@ -53,4 +59,3 @@ htmlcov/
 dist/
 build/
 docs
-README.md

@@ -34,6 +34,11 @@ class EnvSettings(BaseSettings):
     BOT_TOKEN: str = Field(default="", description="Токен бота для валидации initData WebApp")
     TELEGRAM_WEBAPP_HOST: str = Field(default="", description="Origin WebApp для CORS (например https://xxx.ngrok.io)")
     DEV_WEBAPP_TELEGRAM_ID: str = Field(default="", description="При DEBUG: telegram_id для запросов без initData (тест в браузере)")
+    TELEGRAM_BOT_USERNAME: str = Field(default="", description="Username бота без @ (t.me/name)")
+    TELEGRAM_MINIAPP_SHORT_NAME: str = Field(
+        default="",
+        description="Короткое имя Mini App в @BotFather (Bot → Mini Apps) — второй сегмент t.me/bot/SHORT?startapp=…; часто ≠ username",
+    )
 
     @property
     def database_url(self) -> str:

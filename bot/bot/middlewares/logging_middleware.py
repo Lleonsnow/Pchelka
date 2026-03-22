@@ -37,6 +37,8 @@ def _get_update_type(update: Update) -> str:
 def _get_telegram_id(update: Update) -> int | None:
     if update.message and update.message.from_user:
         return update.message.from_user.id
+    if update.channel_post and update.channel_post.from_user:
+        return update.channel_post.from_user.id
     if update.callback_query and update.callback_query.from_user:
         return update.callback_query.from_user.id
     if update.inline_query and update.inline_query.from_user:
@@ -61,5 +63,33 @@ class LoggingMiddleware(BaseMiddleware):
             tg_id = _get_telegram_id(event)
             update_type = _get_update_type(event)
             ts = datetime.now(timezone.utc).isoformat()
-            logger.info("update telegram_id=%s type=%s timestamp=%s", tg_id, update_type, ts)
+            chat_id = None
+            chat_type = None
+            text_preview = None
+            if event.message and event.message.chat:
+                chat_id = event.message.chat.id
+                chat_type = event.message.chat.type
+                text_preview = (event.message.text or event.message.caption or "")[:120]
+            elif event.channel_post and event.channel_post.chat:
+                chat_id = event.channel_post.chat.id
+                chat_type = event.channel_post.chat.type
+                text_preview = (event.channel_post.text or event.channel_post.caption or "")[:120]
+            elif event.my_chat_member and event.my_chat_member.chat:
+                chat_id = event.my_chat_member.chat.id
+                chat_type = event.my_chat_member.chat.type
+                text_preview = f"new_status={event.my_chat_member.new_chat_member.status}"
+            elif event.callback_query:
+                if event.callback_query.message and event.callback_query.message.chat:
+                    chat_id = event.callback_query.message.chat.id
+                    chat_type = event.callback_query.message.chat.type
+                text_preview = (event.callback_query.data or "")[:120]
+            logger.info(
+                "update telegram_id=%s type=%s chat_id=%s chat_type=%s text=%r timestamp=%s",
+                tg_id,
+                update_type,
+                chat_id,
+                chat_type,
+                text_preview,
+                ts,
+            )
         return await handler(event, data)

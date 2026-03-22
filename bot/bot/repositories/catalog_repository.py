@@ -125,7 +125,11 @@ async def get_products_in_category(
             """),
             {"pid": row["id"]},
         )
-        paths = [r["image"] for r in img_result.mappings() if r.get("image")]
+        paths = [
+            (r["image"] or "").strip()
+            for r in img_result.mappings()
+            if (r.get("image") or "").strip()
+        ]
         products.append(ProductData.from_row(row, paths))
     return products
 
@@ -148,7 +152,11 @@ async def get_product_by_id(session: AsyncSession, product_id: int) -> ProductDa
         """),
         {"pid": row["id"]},
     )
-    paths = [r["image"] for r in img_result.mappings() if r.get("image")]
+    paths = [
+        (r["image"] or "").strip()
+        for r in img_result.mappings()
+        if (r.get("image") or "").strip()
+    ]
     return ProductData.from_row(row, paths)
 
 

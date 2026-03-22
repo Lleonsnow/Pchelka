@@ -34,6 +34,18 @@ class SubscriptionMiddleware(BaseMiddleware):
         if not isinstance(event, Update):
             return await handler(event, data)
 
+        # Проверку подписки применяем только к личным диалогам.
+        if event.message and event.message.chat and event.message.chat.type != "private":
+            return await handler(event, data)
+        if event.callback_query and event.callback_query.message and event.callback_query.message.chat.type != "private":
+            return await handler(event, data)
+
+        # Deep link /start (в т.ч. ?start=product_<id>) должен доходить до хендлера — иначе карточка товара не показывается.
+        if event.message and event.message.text:
+            first = (event.message.text or "").split()[0] if (event.message.text or "").strip() else ""
+            if first.startswith("/start"):
+                return await handler(event, data)
+
         user_id = None
         if event.message and event.message.from_user:
             user_id = event.message.from_user.id
@@ -86,4 +98,12 @@ class SubscriptionMiddleware(BaseMiddleware):
             await event.callback_query.answer("Сначала подпишитесь на каналы.", show_alert=True)
             if event.callback_query.message:
                 await event.callback_query.message.answer(text, reply_markup=keyboard)
+        elif event.inline_query:
+            # Иначе клиент Telegram зависает в ожидании ответа на inline_query.
+            await event.inline_query.answer(
+                [],
+                cache_time=0,
+                switch_pm_text="Сначала подпишитесь на каналы в боте",
+                switch_pm_parameter="subscribe",
+            )
         return
