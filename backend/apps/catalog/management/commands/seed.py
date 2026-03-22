@@ -39,6 +39,10 @@ PRODUCTS = [
     ("svechi-kosmetika", "Крем с прополисом", "krem-s-propolisom", "Крем для кожи с прополисом. 50 мл.", Decimal("420.00")),
 ]
 
+# В боте список товаров в категории пагинируется с PER_PAGE=6 (bot/repositories/catalog_repository.py).
+# Ниже после базового PRODUCTS дозаполняем категории до этого минимума — появятся кнопки «◀ Назад» / «Вперёд ▶».
+_PAGINATION_DEMO_MIN_PRODUCTS = 10
+
 FAQ_ITEMS = [
     ("Как хранить мёд?", "Храните в тёмном прохладном месте, плотно закрытым. Не нагревайте выше 40 °C."),
     ("Как оформить доставку?", "Выберите товары в корзине, нажмите «Оформить заказ», укажите адрес и контакты. Мы согласуем время доставки."),
@@ -171,6 +175,34 @@ class Command(BaseCommand):
             )
             if created:
                 self.stdout.write(f"  Товар: {name}")
+
+        # Доп. товары для пагинации в Telegram-боте (см. _PAGINATION_DEMO_MIN_PRODUCTS).
+        demo_labels = {
+            "med": "Мёд",
+            "produkty-paseki": "Пасека",
+            "podarochnye-nabory": "Набор",
+            "svechi-kosmetika": "Свечи и уход",
+        }
+        for cat_slug, category in slug_to_category.items():
+            have = Product.objects.filter(category=category).count()
+            need = max(0, _PAGINATION_DEMO_MIN_PRODUCTS - have)
+            label = demo_labels.get(cat_slug, "Товар")
+            for k in range(1, need + 1):
+                n = have + k
+                slug = f"{cat_slug}-demo-{n:03d}"
+                _, created = Product.objects.get_or_create(
+                    category=category,
+                    slug=slug,
+                    defaults={
+                        "name": f"{label} — демо №{n}",
+                        "description": (
+                            "Тестовая позиция для демонстрации пагинации списка товаров в боте."
+                        ),
+                        "price": Decimal("210.00") + Decimal(k),
+                    },
+                )
+                if created:
+                    self.stdout.write(f"  Товар (пагинация): {label} — демо №{n}")
 
         _ensure_seed_product_images(self.stdout, self.style)
 
