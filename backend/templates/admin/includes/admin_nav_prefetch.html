@@ -1,0 +1,51 @@
+{# Ранний prefetch по клику/наведению на ссылки админки — меньше «рывка» при переходах #}
+<script>
+(function () {
+  if (!window.fetch) return;
+  if (document.body.classList.contains("popup")) return;
+  var done = {};
+  function key(href) {
+    return href.split("#")[0];
+  }
+  function prefetch(href) {
+    var k = key(href);
+    if (!k || done[k]) return;
+    done[k] = true;
+    var l = document.createElement("link");
+    l.rel = "prefetch";
+    l.href = k;
+    document.head.appendChild(l);
+  }
+  function eligible(a) {
+    if (!a || a.target === "_blank" || a.hasAttribute("download")) return false;
+    var href = a.getAttribute("href");
+    if (!href || href.charAt(0) === "#" || href.indexOf("javascript:") === 0) return false;
+    try {
+      var u = new URL(href, location.origin);
+      if (u.origin !== location.origin) return false;
+      if (u.pathname.indexOf("/admin/") !== 0) return false;
+    } catch (e) {
+      return false;
+    }
+    return true;
+  }
+  document.addEventListener(
+    "pointerdown",
+    function (e) {
+      var a = e.target.closest("a[href]");
+      if (!eligible(a)) return;
+      prefetch(a.href);
+    },
+    { capture: true, passive: true }
+  );
+  document.addEventListener(
+    "mouseover",
+    function (e) {
+      var a = e.target.closest("a[href]");
+      if (!eligible(a)) return;
+      prefetch(a.href);
+    },
+    { capture: true, passive: true }
+  );
+})();
+</script>

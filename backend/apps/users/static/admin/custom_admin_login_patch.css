@@ -1,0 +1,67 @@
+/*
+ * Патч после admin/css/login.css: убирает узкий блок #container (28em + рамка),
+ * даёт полноширинный каркас и прозрачный main — карточка только у #content-main.
+ */
+body.login {
+  background: #0a0a0a !important;
+  min-height: 100vh !important;
+  height: auto !important;
+}
+
+body.login #container {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important; /* снимает base.css min-width: 980px на мобильных */
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  overflow: visible !important;
+  box-shadow: none !important;
+  height: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+}
+
+body.login #main.main,
+body.login .main {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+body.login main.content,
+body.login main#content-start.content {
+  width: 100% !important;
+  max-width: 100% !important;
+  background: transparent !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+body.login #content.colM,
+body.login #content {
+  flex: 0 0 auto !important;
+}
+
+body.login #footer {
+  flex-shrink: 0;
+  background: transparent !important;
+  border: none !important;
+  padding: 8px 16px !important;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 12px;
+}
