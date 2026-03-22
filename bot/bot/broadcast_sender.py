@@ -95,7 +95,7 @@ async def _send_one_broadcast(
     errors = 0
     photo_url = None
     if broadcast.image:
-        base = config.media_base_url.rstrip("/")
+        base = config.media_download_base_url.rstrip("/")
         path = broadcast.image.lstrip("/")
         photo_url = f"{base}/media/{path}"
 
