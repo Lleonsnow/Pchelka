@@ -1,0 +1,23 @@
+{% load static %}
+{# Ранний фон админки Pchelka: тёмная «сота» #0a0a0a; светлая тема — по prefers-color-scheme #}
+<style id="admin-critical-theme">
+  html { color-scheme: dark light; }
+  body {
+    background-color: #0a0a0a !important;
+    color: #f5f5f5 !important;
+  }
+  @media (prefers-color-scheme: light) {
+    body:not(.login) {
+      background-color: #f4f4f5 !important;
+      color: #18181b !important;
+    }
+  }
+  html[data-theme="dark"] body {
+    background-color: #0a0a0a !important;
+    color: #f5f5f5 !important;
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="preload" href="{% static 'admin/custom_admin.css' %}?v=20260323-pchelka" as="style">

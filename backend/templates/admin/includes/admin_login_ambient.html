@@ -1,0 +1,99 @@
+{# Анимированный фон и частицы на странице входа в админку (тёплые оттенки мёда / луга). #}
+<style id="admin-login-ambient-styles">
+  .admin-login-ambient {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .admin-login-ambient::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(-45deg,
+      rgba(245, 158, 11, 0.18),
+      rgba(234, 179, 8, 0.14),
+      rgba(52, 211, 153, 0.12),
+      rgba(125, 211, 252, 0.14),
+      rgba(245, 158, 11, 0.2));
+    background-size: 400% 400%;
+    animation: adminLoginAmbientShift 15s ease infinite;
+    filter: blur(80px) brightness(0.85) saturate(1.35);
+  }
+  @keyframes adminLoginAmbientShift {
+    0% { background-position: 0% 50%; }
+    25% { background-position: 50% 50%; }
+    50% { background-position: 100% 50%; }
+    75% { background-position: 50% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  #admin-login-particles {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+</style>
+<script>
+(function () {
+  function init() {
+    if (!document.body.classList.contains("login")) return;
+    var bg = document.createElement("div");
+    bg.className = "admin-login-ambient";
+    bg.setAttribute("aria-hidden", "true");
+    document.body.insertBefore(bg, document.body.firstChild);
+    var canvas = document.createElement("canvas");
+    canvas.id = "admin-login-particles";
+    document.body.insertBefore(canvas, bg.nextSibling);
+    var ctx = canvas.getContext("2d");
+    var particles = [];
+    var density = 48;
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    function spawn() {
+      particles = [];
+      for (var i = 0; i < density; i++) {
+        particles.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          radius: Math.random() * 2 + 1,
+          vx: (Math.random() - 0.5) * 0.5,
+          vy: (Math.random() - 0.5) * 0.5,
+          opacity: Math.random() * 0.5 + 0.2
+        });
+      }
+    }
+    function tick() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (var j = 0; j < particles.length; j++) {
+        var p = particles[j];
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = "rgba(253, 224, 71, 0.45)";
+        ctx.fillStyle = "rgba(255, 248, 220, " + p.opacity + ")";
+        ctx.fill();
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x <= 0 || p.x >= canvas.width) p.vx *= -1;
+        if (p.y <= 0 || p.y >= canvas.height) p.vy *= -1;
+      }
+      requestAnimationFrame(tick);
+    }
+    resize();
+    spawn();
+    tick();
+    window.addEventListener("resize", function () {
+      resize();
+      spawn();
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>

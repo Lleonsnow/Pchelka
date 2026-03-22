@@ -1,13 +1,21 @@
 {% extends "admin/base.html" %}
 {% load static %}
 
+{% block extrahead %}
+  {{ block.super }}
+  {% include "admin/includes/critical_admin_head.html" %}
+  {% if "/admin/login" in request.path %}
+    {% include "admin/includes/admin_login_ambient.html" %}
+  {% endif %}
+{% endblock %}
+
 {% block extrastyle %}
   {{ block.super }}
-  <link rel="stylesheet" href="{% static 'admin/custom_admin.css' %}?v=20260321-2">
+  <link rel="stylesheet" href="{% static 'admin/custom_admin.css' %}?v=20260323-pchelka">
 {% endblock %}
 
 {% block branding %}
   <h1 id="site-name">
-    <a href="{% url 'admin:index' %}">Telegram Shop Admin</a>
+    <a href="{% url 'admin:index' %}">Пчёлка — админка</a>
   </h1>
 {% endblock %}
