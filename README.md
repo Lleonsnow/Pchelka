@@ -1,6 +1,8 @@
 # Telegram Shop
 
-Магазин внутри Telegram: **бот** (Aiogram 3), **бэкенд** (Django + DRF + админка), **мини-приложение** (Next.js). Бот и Django используют **одну PostgreSQL**.
+Монорепозиторий магазина внутри Telegram: **бот** (Aiogram 3), **бэкенд** (Django + DRF + админка), **мини-приложение** (Next.js). Бот и Django делят **одну PostgreSQL**. Nginx в dev/prod — единая точка входа для WebApp, API и статики.
+
+**Для кого этот README:** быстро поднять всё локально в Docker, понять, куда кликать после `compose up`, и какие переменные окружения критичны.
 
 ## Возможности
 
@@ -9,6 +11,11 @@
 - **Django:** REST API под префиксом `/api/webapp/` (см. `backend/apps/api/urls.py`), модели каталога, корзины, заказов, пользователей Telegram, FAQ, рассылок, настроек бота; кастомизация админки (шаблоны в `backend/templates/admin/`).
 - **Уведомления:** новый заказ из WebApp → админ-чат; смена статуса заказа в админке → пользователю (через `BOT_INTERNAL_URL` → бот).
 - **Prod:** `docker-compose.prod.yml` — nginx с TLS (Let’s Encrypt: том `./ssl`, webroot `./certbot-webroot`, образ `nginx/` + шаблон `nginx.prod.conf.template`), скрипты `scripts/certbot-standalone.sh` и `scripts/certbot-webroot.sh`.
+
+## Требования
+
+- **Docker** и **Docker Compose v2** (`docker compose`).
+- Свободные порты по умолчанию: **80** (nginx), **3000** (Next dev), **8000** (Django напрямую), **5432** (PostgreSQL, если пробро наружу).
 
 ## Быстрый старт
 
@@ -19,6 +26,8 @@
 ```bash
 docker compose up --build
 ```
+
+При старте контейнера **backend** автоматически выполняется `python manage.py migrate --noinput`, затем `runserver`.
 
 3. Первый вход в админку — создайте суперпользователя:
 
@@ -46,9 +55,9 @@ docker compose exec backend python manage.py seed --clear
 |--------|-----|------------|
 | **nginx** | http://localhost (порт из `NGINX_PORT`, по умолчанию 80) | Единая точка входа: WebApp, `/api/`, `/admin/`, `/media/` |
 | Backend напрямую | http://localhost:8000 | Разработка API и админки без прокси |
-| WebApp (dev) | http://localhost:3000 | Next.js с HMR; API при порте 3000 уходит на `localhost:8000` (см. `webapp/src/lib/api.ts`) |
+| WebApp (dev) | http://localhost:3000 | Next.js с HMR; при порте 3000 API по умолчанию ходит на `localhost:8000` (см. `webapp/src/lib/api.ts`) |
 
-Для Telegram Mini App нужен **публичный HTTPS** на nginx (например `ngrok http 80`). В `.env` укажите `TELEGRAM_WEBAPP_HOST=https://....` и добавьте хост в `ALLOWED_HOSTS`.
+Для Telegram Mini App нужен **публичный HTTPS** на nginx (например `ngrok http 80`). В `.env` укажите `TELEGRAM_WEBAPP_HOST=https://…` и добавьте хост в `ALLOWED_HOSTS`.
 
 ## Структура репозитория
 
@@ -58,7 +67,6 @@ tg-shop/
 ├── bot/              # Aiogram: handlers, keyboards, middlewares, repositories, notify_server
 ├── webapp/           # Next.js: app router, components, lib/api.ts, lib/telegram.ts
 ├── nginx/            # Обратный прокси (конфиг в nginx/)
-├── docs/             # ARCHITECTURE*, SECURITY, TESTING, PLAN, чеклисты, BOT_GROUP_PRIVACY
 ├── docker-compose.yml
 └── docker-compose.prod.yml
 ```
